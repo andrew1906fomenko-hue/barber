@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FastBook</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section id="auth-panel" class="screen panel hidden" aria-label="Авторизация">
+        <h2>Регистрация и вход</h2>
+        <p class="muted">Вход только через email и пароль.</p>
+        <div class="auth-grid">
+          <form id="register-form" class="grid one-col" autocomplete="on">
+            <h3>Регистрация</h3>
+            <label>
+              Имя мастера
+              <input id="register-name" required maxlength="60" placeholder="Анна" />
+            </label>
+            <label>
+              Email
+              <input id="register-email" type="email" required maxlength="120" placeholder="anna@mail.com" />
+            </label>
+            <label>
+              Пароль
+              <input id="register-password" type="password" required minlength="6" maxlength="120" />
+            </label>
+            <button type="submit">Создать аккаунт</button>
+          </form>
+
+          <form id="login-form" class="grid one-col" autocomplete="on">
+            <h3>Вход</h3>
+            <label>
+              Email
+              <input id="login-email" type="email" required maxlength="120" />
+            </label>
+            <label>
+              Пароль
+              <input id="login-password" type="password" required maxlength="120" />
+            </label>
+            <button type="submit">Войти</button>
+          </form>
+        </div>
+      </section>
+
+      <section id="master-panel" class="screen hidden" aria-label="Кабинет мастера">
+        <header class="topbar">
+          <button id="tab-home" class="brand-btn" type="button">Главная</button>
+          <div class="tabs">
+            <button id="tab-services" class="tab" type="button">Мои услуги</button>
+            <button id="tab-profile" class="tab" type="button">Мой кабинет</button>
+            <button id="logout-btn" class="tab" type="button">Выйти</button>
+          </div>
+        </header>
+
+        <section id="view-calendar" class="panel">
+          <strong id="main-month-label" class="center-label"></strong>
+          <div class="main-calendar-shell">
+            <button id="main-prev-month" type="button" class="secondary calendar-side-nav is-nav-hidden" aria-label="Предыдущий месяц">←</button>
+            <div id="main-calendar" class="calendar-grid-wrap"></div>
+            <button id="main-next-month" type="button" class="secondary calendar-side-nav is-nav-hidden" aria-label="Следующий месяц">→</button>
+          </div>
+          <button id="toggle-main-calendar" type="button" class="calendar-toggle" aria-label="Развернуть/свернуть календарь">⌄</button>
+
+          <h3 id="selected-date-title" class="center-label">Записи на дату</h3>
+          <ul id="appointments-list" class="list"></ul>
+        </section>
+
+        <section id="view-services" class="panel hidden">
+          <h2>Мои услуги</h2>
+          <ul id="service-list" class="list"></ul>
+          <div class="inline-row">
+            <label class="checkbox-inline top-gap">
+              <input id="hide-price" type="checkbox" />
+              скрыть цену
+            </label>
+          </div>
+          <button id="open-service-modal" type="button" class="add-service-btn">➕ Добавить услугу</button>
+        </section>
+
+        <section id="view-profile" class="panel hidden">
+          <h2>Мой кабинет</h2>
+
+          <form id="master-form" class="grid one-col">
+            <label>
+              Имя мастера
+              <input id="master-name" required maxlength="60" placeholder="Анна" />
+            </label>
+            <label>
+              Ссылка мастера
+              <input id="master-slug" required pattern="[a-z0-9-]+" placeholder="anna-nails" />
+            </label>
+            <label>
+              Начало рабочего дня
+              <input id="work-start" type="time" required value="10:00" />
+            </label>
+            <label>
+              Конец рабочего дня
+              <input id="work-end" type="time" required value="20:00" />
+            </label>
+            <label>
+              Шаг слота (мин)
+              <input id="slot-step" type="number" min="5" max="120" required value="30" />
+            </label>
+            <label>
+              Перерыв между записями (мин)
+              <input id="buffer-min" type="number" min="0" max="120" required value="0" />
+            </label>
+
+            <fieldset class="weekdays">
+              <legend>Рабочие дни</legend>
+              <label><input type="checkbox" value="1" checked />Пн</label>
+              <label><input type="checkbox" value="2" checked />Вт</label>
+              <label><input type="checkbox" value="3" checked />Ср</label>
+              <label><input type="checkbox" value="4" checked />Чт</label>
+              <label><input type="checkbox" value="5" checked />Пт</label>
+              <label><input type="checkbox" value="6" />Сб</label>
+              <label><input type="checkbox" value="0" />Вс</label>
+            </fieldset>
+
+            <button type="submit">Сохранить данные</button>
+          </form>
+
+          <section class="sub-block">
+            <h3>Мой комментарий <span class="plain-note">(он отображается на странице записи)</span></h3>
+            <textarea id="master-notes" rows="4" placeholder="Например: Уважаемые клиенты, возьмите с собой веник и грабли, сегодня у нас субботник."></textarea>
+            <button id="publish-comment" type="button">Опубликовать</button>
+          </section>
+
+          <section class="sub-block">
+            <h3>Мои дополнительные выходные</h3>
+            <div class="month-nav">
+              <button id="off-prev-month" type="button" class="secondary">←</button>
+              <strong id="off-month-label"></strong>
+              <button id="off-next-month" type="button" class="secondary">→</button>
+            </div>
+            <div id="offday-calendar" class="calendar-grid-wrap"></div>
+            <button id="save-offdays" type="button">Сохранить</button>
+          </section>
+
+          <h3>Ссылка и QR</h3>
+          <div id="share-box" class="share-box"></div>
+          <div id="qr-box" class="qr-box"></div>
+        </section>
+      </section>
+
+      <section id="client-panel" class="screen hidden" aria-label="Запись клиента">
+        <div class="client-wrap">
+          <h1>Давай записываться! 👋</h1>
+          <p class="client-subtitle">Это займёт меньше минуты</p>
+          <form id="booking-form" class="grid one-col compact">
+            <section class="booking-step">
+              <h3><span class="step-dot">1</span> Что будем делать?</h3>
+              <p class="step-subtitle">Выбери услугу</p>
+              <div id="booking-service-cards" class="service-cards"></div>
+              <label class="hidden">
+                Услуга
+                <select id="booking-service" required></select>
+              </label>
+            </section>
+
+            <section class="booking-step">
+              <h3><span class="step-dot">2</span> Когда тебе удобно?</h3>
+              <p class="step-subtitle">Выбери дату</p>
+              <div id="booking-date-chips" class="date-chips"></div>
+              <label class="hidden">
+                Дата
+                <input id="booking-date" type="date" required />
+              </label>
+            </section>
+
+            <section class="booking-step">
+              <h3><span class="step-dot">3</span> Во сколько тебя ждём?</h3>
+              <p class="step-subtitle">Выбери время</p>
+              <div id="booking-time-slots" class="time-slots"></div>
+              <input id="booking-time" type="hidden" required />
+            </section>
+
+            <section class="booking-step">
+              <h3><span class="step-dot">4</span> Куда прислать подтверждение?</h3>
+              <p class="step-subtitle">Оставь своё имя и телефон</p>
+              <label>
+                <input id="client-name" required maxlength="60" placeholder="Как к тебе обращаться?" />
+              </label>
+              <label>
+                <input id="client-phone" required maxlength="40" placeholder="Твой номер телефона" />
+              </label>
+            </section>
+
+            <p class="hint-text">Мы напомним тебе о записи и будем ждать в назначенное время ✨</p>
+            <button id="booking-submit" type="submit" class="booking-submit">Записаться</button>
+          </form>
+          <h3 id="comment-title" class="comment-title">Комментарий</h3>
+          <p id="master-comment-display" class="master-comment"></p>
+        </div>
+      </section>
+
+      <section id="empty-state" class="screen hidden panel">
+        <h2>Ссылка не найдена</h2>
+        <p class="muted">Проверьте ссылку мастера. Пример: <code>?master=anna-nails</code></p>
+      </section>
+    </main>
+
+    <dialog id="service-modal">
+      <form id="service-form" class="grid one-col modal-form" method="dialog">
+        <h3 id="service-modal-title">Добавить услугу</h3>
+        <label>
+          Название услуги
+          <input id="service-title" required maxlength="80" placeholder="Маникюр" />
+        </label>
+        <label>
+          Цена (₽)
+          <input id="service-price" type="number" min="0" required />
+        </label>
+        <label>
+          Длительность (мин)
+          <input id="service-duration" type="number" min="5" max="600" required value="60" />
+        </label>
+        <label>
+          Нюансы
+          <input id="service-notes" maxlength="180" placeholder="Необязательно" />
+        </label>
+        <div class="item-actions">
+          <button type="submit">Сохранить</button>
+          <button id="close-service-modal" type="button" class="secondary">Отмена</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script src="app.js" defer></script>
+  </body>
+</html>

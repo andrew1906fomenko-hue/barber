@@ -1,0 +1,48 @@
+CREATE TABLE IF NOT EXISTS users (
+  id UUID PRIMARY KEY,
+  email TEXT UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS masters (
+  id UUID PRIMARY KEY,
+  user_id UUID NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  slug TEXT UNIQUE NOT NULL,
+  notes TEXT NOT NULL DEFAULT '',
+  work_start TEXT NOT NULL DEFAULT '10:00',
+  work_end TEXT NOT NULL DEFAULT '20:00',
+  slot_step_min INTEGER NOT NULL DEFAULT 30,
+  buffer_min INTEGER NOT NULL DEFAULT 0,
+  work_days JSONB NOT NULL DEFAULT '[1,2,3,4,5]'::jsonb,
+  show_price BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS services (
+  id UUID PRIMARY KEY,
+  master_id UUID NOT NULL REFERENCES masters(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  price INTEGER NOT NULL,
+  duration_min INTEGER NOT NULL,
+  notes TEXT NOT NULL DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS off_days (
+  master_id UUID NOT NULL REFERENCES masters(id) ON DELETE CASCADE,
+  day DATE NOT NULL,
+  PRIMARY KEY(master_id, day)
+);
+
+CREATE TABLE IF NOT EXISTS appointments (
+  id UUID PRIMARY KEY,
+  master_id UUID NOT NULL REFERENCES masters(id) ON DELETE CASCADE,
+  service_id UUID NOT NULL,
+  date DATE NOT NULL,
+  start_time TEXT NOT NULL,
+  end_time TEXT NOT NULL,
+  client_name TEXT NOT NULL,
+  client_phone TEXT NOT NULL
+);
