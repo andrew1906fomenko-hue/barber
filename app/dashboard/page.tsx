@@ -43,6 +43,7 @@ type MasterProfile = {
 const nav: Section[] = ["Главная", "Услуги", "График работы", "Аналитика", "Финансы", "Настройки"];
 const weekDays = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 const timeSlots = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00"];
+const ruMonths = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
 
 const emptyService = {
   title: "",
@@ -79,6 +80,17 @@ const normalizeSlug = (value: string) =>
     .toLowerCase()
     .replace(/[^a-z0-9а-яё]+/gi, "-")
     .replace(/^-+|-+$/g, "") || "master";
+
+const getDateParts = (value: string) => {
+  const [year, month, day] = value.split("-").map(Number);
+  return { year, month, day };
+};
+
+const buildDateKey = (year: number, month: number, day: number) => {
+  const maxDay = new Date(year, month, 0).getDate();
+  const normalizedDay = Math.min(day, maxDay);
+  return `${year}-${String(month).padStart(2, "0")}-${String(normalizedDay).padStart(2, "0")}`;
+};
 
 const formatDateKey = (date: Date) => {
   const year = date.getFullYear();
@@ -452,14 +464,11 @@ export default function DashboardPage() {
           )}
 
           {section === "Аналитика" && (
-            <SimpleSection
-              title="Аналитика"
-              text={`Всего записей: ${appointments.length}. Активных услуг: ${activeServices.length}. Данные обновляются после добавления записей и услуг.`}
-            />
+            <AnalyticsSection appointments={appointments} activeServices={activeServices.length} blockedTimes={blockedTimes} services={services} />
           )}
 
           {section === "Финансы" && (
-            <SimpleSection title="Финансы" text={`Ожидаемая выручка по всем записям: ${totalRevenue.toLocaleString("ru-RU")} ₽.`} />
+            <FinanceSection appointments={appointments} services={services} totalRevenue={totalRevenue} />
           )}
 
           {section === "Настройки" && (
@@ -911,6 +920,11 @@ function ScheduleSection(props: {
   workEnd: string;
   workStart: string;
 }) {
+  const dateParts = getDateParts(props.blockForm.date);
+  const currentYear = new Date().getFullYear();
+  const years = Array.from({ length: 4 }, (_, index) => currentYear - 1 + index);
+  const daysInMonth = new Date(dateParts.year, dateParts.month, 0).getDate();
+
   return (
     <div className="space-y-5">
       <article className="saas-card max-w-4xl space-y-5 p-6">
@@ -952,14 +966,55 @@ function ScheduleSection(props: {
           <p className="mt-1 text-muted">Закройте день или несколько часов, если мастер не принимает клиентов.</p>
         </div>
 
-        <form onSubmit={props.addBlockedTime} className="grid gap-3 lg:grid-cols-[1.2fr_1fr_1fr_2fr_auto]">
-          <input
-            type="date"
-            value={props.blockForm.date}
-            onChange={(event) => props.setBlockForm((current) => ({ ...current, date: event.target.value }))}
+        <form onSubmit={props.addBlockedTime} className="grid gap-3 lg:grid-cols-[0.8fr_1.2fr_0.9fr_1fr_1fr_2fr_auto]">
+          <select
+            value={dateParts.day}
+            onChange={(event) =>
+              props.setBlockForm((current) => {
+                const currentParts = getDateParts(current.date);
+                return { ...current, date: buildDateKey(currentParts.year, currentParts.month, Number(event.target.value)) };
+              })
+            }
             className="rounded-xl border border-border px-4 py-3"
-            required
-          />
+          >
+            {Array.from({ length: daysInMonth }, (_, index) => index + 1).map((day) => (
+              <option key={day} value={day}>
+                {String(day).padStart(2, "0")}
+              </option>
+            ))}
+          </select>
+          <select
+            value={dateParts.month}
+            onChange={(event) =>
+              props.setBlockForm((current) => {
+                const currentParts = getDateParts(current.date);
+                return { ...current, date: buildDateKey(currentParts.year, Number(event.target.value), currentParts.day) };
+              })
+            }
+            className="rounded-xl border border-border px-4 py-3"
+          >
+            {ruMonths.map((month, index) => (
+              <option key={month} value={index + 1}>
+                {month}
+              </option>
+            ))}
+          </select>
+          <select
+            value={dateParts.year}
+            onChange={(event) =>
+              props.setBlockForm((current) => {
+                const currentParts = getDateParts(current.date);
+                return { ...current, date: buildDateKey(Number(event.target.value), currentParts.month, currentParts.day) };
+              })
+            }
+            className="rounded-xl border border-border px-4 py-3"
+          >
+            {years.map((year) => (
+              <option key={year} value={year}>
+                {year}
+              </option>
+            ))}
+          </select>
           <select
             value={props.blockForm.start}
             onChange={(event) => props.setBlockForm((current) => ({ ...current, start: event.target.value }))}
@@ -1014,6 +1069,165 @@ function ScheduleSection(props: {
         )}
       </section>
     </div>
+  );
+}
+
+function AnalyticsSection({
+  appointments,
+  activeServices,
+  blockedTimes,
+  services,
+}: {
+  appointments: Appointment[];
+  activeServices: number;
+  blockedTimes: BlockedTime[];
+  services: Service[];
+}) {
+  const completed = appointments.filter((item) => item.status === "Завершена").length;
+  const confirmed = appointments.filter((item) => item.status === "Подтверждена").length;
+  const active = appointments.filter((item) => item.status === "Активна").length;
+  const maxStatus = Math.max(active, confirmed, completed, 1);
+  const serviceStats = services
+    .map((service) => ({
+      title: service.title,
+      count: appointments.filter((item) => item.serviceId === service.id).length,
+    }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
+  const maxService = Math.max(...serviceStats.map((item) => item.count), 1);
+
+  return (
+    <div className="space-y-5">
+      <header>
+        <h1 className="text-3xl font-semibold md:text-5xl">Аналитика</h1>
+        <p className="mt-2 text-lg text-muted">Динамика записей, статусы и популярность услуг.</p>
+      </header>
+
+      <section className="grid gap-4 xl:grid-cols-4">
+        <MetricCard label="Всего записей" value={appointments.length.toString()} />
+        <MetricCard label="Подтверждено" value={confirmed.toString()} />
+        <MetricCard label="Активных услуг" value={activeServices.toString()} />
+        <MetricCard label="Блокировок времени" value={blockedTimes.length.toString()} />
+      </section>
+
+      <section className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+        <article className="saas-card p-6">
+          <h2 className="text-2xl font-semibold">Статусы записей</h2>
+          <div className="mt-6 space-y-4">
+            {[
+              ["Активна", active],
+              ["Подтверждена", confirmed],
+              ["Завершена", completed],
+            ].map(([label, value]) => (
+              <div key={label}>
+                <div className="mb-2 flex justify-between text-sm text-muted">
+                  <span>{label}</span>
+                  <span>{value}</span>
+                </div>
+                <div className="h-3 overflow-hidden rounded-full bg-section">
+                  <div className="h-full rounded-full bg-accent" style={{ width: `${(Number(value) / maxStatus) * 100}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </article>
+
+        <article className="saas-card p-6">
+          <h2 className="text-2xl font-semibold">Популярные услуги</h2>
+          <div className="mt-6 space-y-4">
+            {serviceStats.length === 0 ? (
+              <p className="text-muted">Данных пока нет.</p>
+            ) : (
+              serviceStats.map((item) => (
+                <div key={item.title}>
+                  <div className="mb-2 flex justify-between text-sm text-muted">
+                    <span>{item.title}</span>
+                    <span>{item.count}</span>
+                  </div>
+                  <div className="h-3 overflow-hidden rounded-full bg-section">
+                    <div className="h-full rounded-full bg-text" style={{ width: `${(item.count / maxService) * 100}%` }} />
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </article>
+      </section>
+    </div>
+  );
+}
+
+function FinanceSection({ appointments, services, totalRevenue }: { appointments: Appointment[]; services: Service[]; totalRevenue: number }) {
+  const paidAppointments = appointments.filter((item) => services.some((service) => service.id === item.serviceId));
+  const averageCheck = paidAppointments.length ? Math.round(totalRevenue / paidAppointments.length) : 0;
+  const revenueByService = services
+    .map((service) => {
+      const count = appointments.filter((item) => item.serviceId === service.id).length;
+      return { title: service.title, count, revenue: count * service.price };
+    })
+    .filter((item) => item.revenue > 0)
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, 5);
+  const maxRevenue = Math.max(...revenueByService.map((item) => item.revenue), 1);
+  const projectedRevenue = totalRevenue + averageCheck * Math.max(0, 10 - paidAppointments.length);
+
+  return (
+    <div className="space-y-5">
+      <header>
+        <h1 className="text-3xl font-semibold md:text-5xl">Финансы</h1>
+        <p className="mt-2 text-lg text-muted">Выручка, средний чек и вклад услуг.</p>
+      </header>
+
+      <section className="grid gap-4 xl:grid-cols-3">
+        <MetricCard label="Выручка" value={`${totalRevenue.toLocaleString("ru-RU")} ₽`} />
+        <MetricCard label="Средний чек" value={`${averageCheck.toLocaleString("ru-RU")} ₽`} />
+        <MetricCard label="Прогноз" value={`${projectedRevenue.toLocaleString("ru-RU")} ₽`} />
+      </section>
+
+      <section className="grid gap-5 xl:grid-cols-[1fr_1fr]">
+        <article className="saas-card p-6">
+          <h2 className="text-2xl font-semibold">Выручка по услугам</h2>
+          <div className="mt-6 space-y-4">
+            {revenueByService.length === 0 ? (
+              <p className="text-muted">Пока нет оплачиваемых записей.</p>
+            ) : (
+              revenueByService.map((item) => (
+                <div key={item.title}>
+                  <div className="mb-2 flex justify-between text-sm text-muted">
+                    <span>{item.title}</span>
+                    <span>{item.revenue.toLocaleString("ru-RU")} ₽</span>
+                  </div>
+                  <div className="h-3 overflow-hidden rounded-full bg-section">
+                    <div className="h-full rounded-full bg-accent" style={{ width: `${(item.revenue / maxRevenue) * 100}%` }} />
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </article>
+
+        <article className="saas-card p-6">
+          <h2 className="text-2xl font-semibold">Финансовая картина</h2>
+          <div className="mt-6 flex h-56 items-end gap-3 rounded-2xl bg-section p-4">
+            {[35, 58, 44, 72, 64, 86, Math.min(100, totalRevenue ? 92 : 24)].map((height, index) => (
+              <div key={index} className="flex flex-1 items-end">
+                <div className="w-full rounded-t-xl bg-accent" style={{ height: `${height}%`, opacity: 0.35 + index * 0.08 }} />
+              </div>
+            ))}
+          </div>
+          <p className="mt-4 text-sm text-muted">Мини-график показывает условную динамику и станет точнее после подключения серверной аналитики.</p>
+        </article>
+      </section>
+    </div>
+  );
+}
+
+function MetricCard({ label, value }: { label: string; value: string }) {
+  return (
+    <article className="saas-card p-5">
+      <p className="text-sm text-muted">{label}</p>
+      <p className="mt-2 text-4xl font-semibold">{value}</p>
+    </article>
   );
 }
 
