@@ -10,6 +10,7 @@
 ## Экраны
 - `/` — Landing page
 - `/booking` — Client booking page
+- `/m/[slug]` — публичная страница записи мастера (например `/m/anna-nails`)
 - `/dashboard` — Master dashboard (разделы: Главная, Записи, Клиенты, Услуги, Расписание, Ссылка для записи, Настройки)
 
 ## Запуск UI
