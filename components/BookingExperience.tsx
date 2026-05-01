@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-type Service = { id: string; title: string; duration: string; price: string };
+type Service = { id: string; title: string; duration: string; durationMinutes: number; price: string };
 
 type SavedService = {
   id: string;
@@ -47,6 +47,14 @@ const formatDateKey = (date: Date) => {
 
 const formatDateLabel = (date: Date) =>
   date.toLocaleDateString("ru-RU", { day: "numeric", month: "long", weekday: "short" });
+
+const timeToMinutes = (value: string) => {
+  const [hours, minutes] = value.split(":").map(Number);
+  return hours * 60 + minutes;
+};
+
+const intervalsOverlap = (startA: number, endA: number, startB: number, endB: number) =>
+  startA < endB && startB < endA;
 
 export default function BookingExperience({ title = "Давай подберём тебе удобное время" }: { title?: string }) {
   const availableDays = useMemo(() => {
@@ -100,6 +108,7 @@ export default function BookingExperience({ title = "Давай подберём
         id: service.id,
         title: service.title,
         duration: `${service.duration} мин`,
+        durationMinutes: service.duration,
         price: `${service.price.toLocaleString("ru-RU")} ₽`,
       }));
 
@@ -113,11 +122,24 @@ export default function BookingExperience({ title = "Давай подберём
   const cta = useMemo(() => `Записаться на ${bookingDateText} в ${time}`, [bookingDateText, time]);
   const unavailableTimes = useMemo(
     () =>
-      new Set([
-        ...appointments.filter((item) => item.date === day).map((item) => item.time),
-        ...times.filter((slot) => blockedTimes.some((block) => block.date === day && slot >= block.start && slot < block.end)),
-      ]),
-    [appointments, blockedTimes, day],
+      new Set(
+        times.filter((slot) => {
+          const slotStart = timeToMinutes(slot);
+          const slotEnd = slotStart + (selectedService?.durationMinutes || 60);
+          const overlapsAppointment = appointments.some((item) => {
+            if (item.date !== day) return false;
+            const service = services.find((entry) => entry.id === item.serviceId);
+            const itemStart = timeToMinutes(item.time);
+            const itemEnd = itemStart + (service?.durationMinutes || 60);
+            return intervalsOverlap(slotStart, slotEnd, itemStart, itemEnd);
+          });
+          const overlapsBlock = blockedTimes.some(
+            (block) => block.date === day && intervalsOverlap(slotStart, slotEnd, timeToMinutes(block.start), timeToMinutes(block.end)),
+          );
+          return overlapsAppointment || overlapsBlock;
+        }),
+      ),
+    [appointments, blockedTimes, day, selectedService, services],
   );
 
   useEffect(() => {
@@ -145,8 +167,28 @@ export default function BookingExperience({ title = "Давай подберём
       return;
     }
 
+    const savedBlockedTimes = window.localStorage.getItem("barber-blocked-times");
+    const currentBlockedTimes = savedBlockedTimes ? (JSON.parse(savedBlockedTimes) as BlockedTime[]) : [];
+    const slotStart = timeToMinutes(time);
+    const slotEnd = slotStart + selectedService.durationMinutes;
+
     const savedAppointments = window.localStorage.getItem("barber-appointments");
     const currentAppointments = savedAppointments ? (JSON.parse(savedAppointments) as SavedAppointment[]) : [];
+    const stillOverlapsAppointment = currentAppointments.some((item) => {
+      if (item.date !== day) return false;
+      const service = services.find((entry) => entry.id === item.serviceId);
+      const itemStart = timeToMinutes(item.time);
+      const itemEnd = itemStart + (service?.durationMinutes || 60);
+      return intervalsOverlap(slotStart, slotEnd, itemStart, itemEnd);
+    });
+    const stillOverlapsBlock = currentBlockedTimes.some(
+      (block) => block.date === day && intervalsOverlap(slotStart, slotEnd, timeToMinutes(block.start), timeToMinutes(block.end)),
+    );
+    if (stillOverlapsAppointment || stillOverlapsBlock) {
+      alert("Это время уже занято. Выберите другое время");
+      return;
+    }
+
     const appointment: SavedAppointment = {
       id: crypto.randomUUID(),
       date: day,
@@ -171,7 +213,7 @@ export default function BookingExperience({ title = "Давай подберём
           {masterProfile?.showOnBookingPage && masterProfile.displayName.trim() && (
             <p className="text-lg font-semibold text-accent">{masterProfile.displayName}</p>
           )}
-          <h1 className="text-3xl font-semibold md:text-5xl">{title}</h1>
+          <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">{title}</h1>
           <p className="text-lg text-muted">Выберите услугу, дату и время визита</p>
         </header>
 

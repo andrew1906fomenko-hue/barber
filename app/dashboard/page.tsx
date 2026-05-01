@@ -92,6 +92,14 @@ const buildDateKey = (year: number, month: number, day: number) => {
   return `${year}-${String(month).padStart(2, "0")}-${String(normalizedDay).padStart(2, "0")}`;
 };
 
+const timeToMinutes = (value: string) => {
+  const [hours, minutes] = value.split(":").map(Number);
+  return hours * 60 + minutes;
+};
+
+const intervalsOverlap = (startA: number, endA: number, startB: number, endB: number) =>
+  startA < endB && startB < endA;
+
 const formatDateKey = (date: Date) => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -306,9 +314,28 @@ export default function DashboardPage() {
       return;
     }
 
-    const timeBlocked = blockedTimes.some((block) => block.date === selectedDate && appointmentForm.time >= block.start && appointmentForm.time < block.end);
+    const selectedService = services.find((service) => service.id === serviceId);
+    const appointmentStart = timeToMinutes(appointmentForm.time);
+    const appointmentEnd = appointmentStart + (selectedService?.duration || 60);
+    const timeBlocked = blockedTimes.some(
+      (block) =>
+        block.date === selectedDate &&
+        intervalsOverlap(appointmentStart, appointmentEnd, timeToMinutes(block.start), timeToMinutes(block.end)),
+    );
     if (timeBlocked) {
       showToast("Это время заблокировано мастером");
+      return;
+    }
+
+    const appointmentOverlaps = appointments.some((item) => {
+      if (item.date !== selectedDate) return false;
+      const service = services.find((entry) => entry.id === item.serviceId);
+      const itemStart = timeToMinutes(item.time);
+      const itemEnd = itemStart + (service?.duration || 60);
+      return intervalsOverlap(appointmentStart, appointmentEnd, itemStart, itemEnd);
+    });
+    if (appointmentOverlaps) {
+      showToast("Это время пересекается с другой записью");
       return;
     }
 
@@ -362,6 +389,28 @@ export default function DashboardPage() {
       return;
     }
 
+    const blockStart = timeToMinutes(blockForm.start);
+    const blockEnd = timeToMinutes(blockForm.end);
+    const blockOverlapsAppointment = appointments.some((item) => {
+      if (item.date !== blockForm.date) return false;
+      const service = services.find((entry) => entry.id === item.serviceId);
+      const appointmentStart = timeToMinutes(item.time);
+      const appointmentEnd = appointmentStart + (service?.duration || 60);
+      return intervalsOverlap(blockStart, blockEnd, appointmentStart, appointmentEnd);
+    });
+    if (blockOverlapsAppointment) {
+      showToast("Блокировка пересекается с существующей записью");
+      return;
+    }
+
+    const blockOverlapsBlock = blockedTimes.some(
+      (item) => item.date === blockForm.date && intervalsOverlap(blockStart, blockEnd, timeToMinutes(item.start), timeToMinutes(item.end)),
+    );
+    if (blockOverlapsBlock) {
+      showToast("Такая блокировка пересекается с другой");
+      return;
+    }
+
     setBlockedTimes((current) => [
       {
         id: crypto.randomUUID(),
@@ -385,14 +434,16 @@ export default function DashboardPage() {
     <main className="min-h-screen bg-section pb-24 md:pb-0">
       <div className="mx-auto grid max-w-[1600px] gap-6 px-4 py-6 md:grid-cols-[300px_1fr]">
         <aside className="saas-card hidden h-fit p-4 md:block">
-          <p className="px-3 py-4 text-3xl font-semibold text-accent">Beauty Time</p>
+          <p className="px-3 py-4 text-2xl font-semibold tracking-tight text-text">Beauty Time</p>
           <nav className="space-y-1">
             {nav.map((item) => (
               <button
                 key={item}
                 type="button"
                 onClick={() => setSection(item)}
-                className={`w-full rounded-xl px-3 py-3 text-left text-2xl transition ${section === item ? "bg-accentSoft text-accent" : "hover:bg-section"}`}
+                className={`w-full rounded-xl px-3 py-3 text-left text-lg transition ${
+                  section === item ? "bg-accentSoft text-accent" : "text-muted hover:bg-section hover:text-text"
+                }`}
               >
                 {item}
               </button>
@@ -482,7 +533,7 @@ export default function DashboardPage() {
         </section>
       </div>
 
-      <nav className="fixed bottom-0 left-0 right-0 z-20 border-t border-border bg-white p-2 md:hidden">
+      <nav className="fixed bottom-0 left-0 right-0 z-20 border-t border-border bg-white/95 p-2 backdrop-blur md:hidden">
         <div className="mx-auto grid max-w-4xl grid-cols-3 gap-2">
           {nav.slice(0, 6).map((item) => (
             <button
@@ -536,7 +587,7 @@ function HomeSection(props: {
     <>
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-semibold md:text-5xl">Привет{props.masterName.trim() ? `, ${props.masterName}` : ""}!</h1>
+          <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Привет{props.masterName.trim() ? `, ${props.masterName}` : ""}!</h1>
           <p className="mt-2 text-lg text-muted">Вот что происходит в вашем салоне сегодня.</p>
         </div>
       </header>
@@ -548,7 +599,7 @@ function HomeSection(props: {
           className="flex w-full flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4 text-left transition hover:bg-accentSoft"
         >
           <div>
-            <p className="text-3xl font-semibold capitalize">{props.formatSelectedDate}</p>
+            <p className="text-2xl font-semibold capitalize tracking-tight md:text-3xl">{props.formatSelectedDate}</p>
             <p className="text-muted capitalize">{formatMonth(props.monthDate)}</p>
           </div>
           <div className="text-lg font-semibold text-accent">
@@ -620,7 +671,10 @@ function HomeSection(props: {
 
       <section className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-3xl font-semibold">Записи на {props.formatSelectedDate}</h2>
+          <div>
+            <h2 className="text-2xl font-semibold tracking-tight md:text-3xl">Записи на {props.formatSelectedDate}</h2>
+            <p className="mt-1 text-sm text-muted">Записей: {props.appointments.length}</p>
+          </div>
           <div className="flex gap-3">
             <button
               type="button"
@@ -721,15 +775,15 @@ function HomeSection(props: {
               return (
                 <article key={item.id} className="saas-card grid gap-3 p-4 md:grid-cols-[120px_1fr_1fr_220px] md:items-center">
                   <div>
-                    <p className="text-4xl font-semibold text-accent">{item.time}</p>
+                    <p className="text-3xl font-semibold text-accent">{item.time}</p>
                     <p className="text-muted">{item.status}</p>
                   </div>
                   <div>
-                    <p className="text-2xl font-medium">{item.client}</p>
+                    <p className="text-xl font-medium">{item.client}</p>
                     <p className="text-muted">{item.phone}</p>
                   </div>
                   <div>
-                    <p className="text-2xl font-medium">{service?.title || "Услуга удалена"}</p>
+                    <p className="text-xl font-medium">{service?.title || "Услуга удалена"}</p>
                     <p className="text-muted">{service ? `${service.duration} мин • ${service.price.toLocaleString("ru-RU")} ₽` : "нет деталей"}</p>
                   </div>
                   <div className="flex gap-2">
@@ -745,13 +799,6 @@ function HomeSection(props: {
             })
           )}
         </div>
-      </section>
-
-      <section className="grid gap-4 xl:grid-cols-3">
-        <StatCard title="записей сегодня" value={String(props.appointments.length)} extra={props.formatSelectedDate} />
-        {props.appointments.length > 0 && (
-          <StatCard title="выручка" value={`${props.selectedDateRevenue.toLocaleString("ru-RU")} ₽`} extra="за выбранную дату" />
-        )}
       </section>
     </>
   );
@@ -771,7 +818,7 @@ function ServicesSection(props: {
     <div className="space-y-5">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-semibold md:text-5xl">Услуги</h1>
+          <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Услуги</h1>
           <p className="mt-2 text-lg text-muted">Добавляйте услуги со стоимостью, длительностью и описанием для клиентов.</p>
         </div>
         <button
@@ -962,7 +1009,7 @@ function ScheduleSection(props: {
 
       <article className="saas-card max-w-4xl space-y-5 p-6">
         <div>
-          <h2 className="text-3xl font-semibold">Заблокировать время</h2>
+          <h2 className="text-2xl font-semibold tracking-tight md:text-3xl">Заблокировать время</h2>
           <p className="mt-1 text-muted">Закройте день или несколько часов, если мастер не принимает клиентов.</p>
         </div>
 
@@ -1099,7 +1146,7 @@ function AnalyticsSection({
   return (
     <div className="space-y-5">
       <header>
-        <h1 className="text-3xl font-semibold md:text-5xl">Аналитика</h1>
+        <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Аналитика</h1>
         <p className="mt-2 text-lg text-muted">Динамика записей, статусы и популярность услуг.</p>
       </header>
 
@@ -1174,7 +1221,7 @@ function FinanceSection({ appointments, services, totalRevenue }: { appointments
   return (
     <div className="space-y-5">
       <header>
-        <h1 className="text-3xl font-semibold md:text-5xl">Финансы</h1>
+        <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Финансы</h1>
         <p className="mt-2 text-lg text-muted">Выручка, средний чек и вклад услуг.</p>
       </header>
 
@@ -1241,7 +1288,7 @@ function SettingsSection(props: {
     <div className="space-y-5">
       <article className="saas-card max-w-4xl space-y-5 p-6">
         <div>
-          <h1 className="text-3xl font-semibold">Настройки мастера</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">Настройки мастера</h1>
           <p className="mt-2 text-muted">Имя или ник можно показывать на странице онлайн-записи либо скрыть.</p>
         </div>
 
@@ -1300,8 +1347,8 @@ function SimpleSection({ title, text }: { title: string; text: string }) {
 function StatCard({ title, value, extra }: { title: string; value: string; extra: string }) {
   return (
     <article className="saas-card p-5">
-      <p className="break-words text-5xl font-semibold md:text-6xl">{value}</p>
-      <p className="mt-1 text-2xl font-medium">{title}</p>
+      <p className="break-words text-4xl font-semibold tracking-tight md:text-5xl">{value}</p>
+      <p className="mt-1 text-xl font-medium">{title}</p>
       <p className="mt-1 text-muted">{extra}</p>
     </article>
   );
