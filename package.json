@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "next dev",
+    "lint": "tsc --noEmit --incremental false",
     "build": "next build",
     "start": "next start",
     "api": "node server.js"

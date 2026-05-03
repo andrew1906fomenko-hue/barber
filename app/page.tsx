@@ -22,11 +22,14 @@ export default function LandingPage() {
             Создайте услуги, настройте расписание и дайте клиентам одну красивую ссылку для записи.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
-            <Link href="/dashboard" className="rounded-2xl bg-accent px-6 py-3 text-base font-semibold text-white saas-hover">
+            <Link href="/register" className="rounded-2xl bg-accent px-6 py-3 text-base font-semibold text-white saas-hover">
               Создать страницу записи
             </Link>
             <Link href="/booking" className="rounded-2xl border border-border bg-white px-6 py-3 text-base font-semibold text-text saas-hover">
               Посмотреть пример
+            </Link>
+            <Link href="/admin" className="rounded-2xl border border-border bg-white px-6 py-3 text-base font-semibold text-text saas-hover">
+              Админ-панель
             </Link>
           </div>
         </div>

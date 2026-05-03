@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
 type Section = "Главная" | "Услуги" | "График работы" | "Аналитика" | "Финансы" | "Настройки";
 type AppointmentStatus = "Активна" | "Подтверждена" | "Завершена";
@@ -40,6 +41,20 @@ type MasterProfile = {
   showOnBookingPage: boolean;
 };
 
+type AuthSession = {
+  email: string;
+};
+
+type MasterAccount = {
+  email: string;
+  name: string;
+  password: string;
+  slug: string;
+  createdAt: string;
+};
+
+const accountsKey = "barber-master-accounts";
+const sessionKey = "barber-master-session";
 const nav: Section[] = ["Главная", "Услуги", "График работы", "Аналитика", "Финансы", "Настройки"];
 const weekDays = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 const timeSlots = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00"];
@@ -74,12 +89,36 @@ const defaultMasterProfile: MasterProfile = {
   showOnBookingPage: true,
 };
 
+const getMasterStorageKey = (email: string, key: string) => `barber-master:${email}:${key}`;
+
+const getStoredAccounts = () => {
+  try {
+    return JSON.parse(window.localStorage.getItem(accountsKey) || "[]") as MasterAccount[];
+  } catch {
+    return [];
+  }
+};
+
+const normalizeEmailSlug = (email: string) =>
+  email
+    .split("@")[0]
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "master";
+
 const normalizeSlug = (value: string) =>
   value
     .trim()
     .toLowerCase()
-    .replace(/[^a-z0-9а-яё]+/gi, "-")
-    .replace(/^-+|-+$/g, "") || "master";
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+const normalizeSlugOrFallback = (value: string, fallback = "master") => normalizeSlug(value) || fallback;
+
+const resolveLatinSlug = (value: string, fallback: string) => {
+  const hasLatinOrDigit = /[a-z0-9]/i.test(value);
+  return hasLatinOrDigit ? normalizeSlug(value) : normalizeSlugOrFallback(fallback);
+};
 
 const getDateParts = (value: string) => {
   const [year, month, day] = value.split("-").map(Number);
@@ -144,9 +183,11 @@ const getSelectedWeekDays = (date: Date) => {
 };
 
 export default function DashboardPage() {
+  const router = useRouter();
   const today = useMemo(() => new Date(), []);
   const [section, setSection] = useState<Section>("Главная");
   const [toast, setToast] = useState("");
+  const [authSession, setAuthSession] = useState<AuthSession | null>(null);
   const [monthDate, setMonthDate] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
   const [selectedDate, setSelectedDate] = useState(() => formatDateKey(today));
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -168,34 +209,66 @@ export default function DashboardPage() {
   const bookingPath = `/m/${masterProfile.slug || "master"}`;
   const bookingUrl = typeof window === "undefined" ? bookingPath : `${window.location.origin}${bookingPath}`;
 
-  const loadStoredData = () => {
-    const savedServices = window.localStorage.getItem("barber-services");
-    const savedAppointments = window.localStorage.getItem("barber-appointments");
-    const savedBlockedTimes = window.localStorage.getItem("barber-blocked-times");
-    const savedMasterProfile = window.localStorage.getItem("barber-master-profile");
+  const loadStoredData = (email = authSession?.email) => {
+    if (!email) return;
+    const account = getStoredAccounts().find((item) => item.email === email);
+    const savedServices = window.localStorage.getItem(getMasterStorageKey(email, "services"));
+    const savedAppointments = window.localStorage.getItem(getMasterStorageKey(email, "appointments"));
+    const savedBlockedTimes = window.localStorage.getItem(getMasterStorageKey(email, "blocked-times"));
+    const savedMasterProfile = window.localStorage.getItem(getMasterStorageKey(email, "master-profile"));
 
     if (savedServices) {
       setServices(JSON.parse(savedServices));
+    } else {
+      setServices([]);
     }
 
     if (savedAppointments) {
       setAppointments(JSON.parse(savedAppointments));
+    } else {
+      setAppointments([]);
     }
 
     if (savedBlockedTimes) {
       setBlockedTimes(JSON.parse(savedBlockedTimes));
+    } else {
+      setBlockedTimes([]);
     }
 
     if (savedMasterProfile) {
-      setMasterProfile({ ...defaultMasterProfile, ...JSON.parse(savedMasterProfile) });
+      const parsedProfile = JSON.parse(savedMasterProfile) as MasterProfile;
+      setMasterProfile({
+        ...defaultMasterProfile,
+        ...parsedProfile,
+        slug: resolveLatinSlug(parsedProfile.slug, account?.slug || normalizeEmailSlug(email)),
+      });
+    } else if (account) {
+      setMasterProfile({ ...defaultMasterProfile, displayName: account.name, slug: resolveLatinSlug(account.slug, normalizeEmailSlug(email)) });
+    } else {
+      setMasterProfile(defaultMasterProfile);
     }
   };
 
   useEffect(() => {
-    loadStoredData();
+    const savedSession = window.localStorage.getItem(sessionKey);
+    if (!savedSession) {
+      router.replace("/register");
+      return;
+    }
+
+    const session = JSON.parse(savedSession) as AuthSession;
+    const accountExists = getStoredAccounts().some((item) => item.email === session.email);
+    if (!accountExists) {
+      window.localStorage.removeItem(sessionKey);
+      router.replace("/register");
+      return;
+    }
+
+    setAuthSession(session);
+    loadStoredData(session.email);
     setStorageReady(true);
 
-    const refreshData = () => loadStoredData();
+    const refreshData = () => loadStoredData(session.email);
     window.addEventListener("storage", refreshData);
     window.addEventListener("focus", refreshData);
     window.addEventListener("barber-appointments-updated", refreshData);
@@ -205,27 +278,47 @@ export default function DashboardPage() {
       window.removeEventListener("focus", refreshData);
       window.removeEventListener("barber-appointments-updated", refreshData);
     };
-  }, []);
+  }, [router]);
 
   useEffect(() => {
-    if (!storageReady) return;
-    window.localStorage.setItem("barber-services", JSON.stringify(services));
-  }, [services, storageReady]);
+    if (!storageReady || !authSession) return;
+    window.localStorage.setItem(getMasterStorageKey(authSession.email, "services"), JSON.stringify(services));
+  }, [authSession, services, storageReady]);
 
   useEffect(() => {
-    if (!storageReady) return;
-    window.localStorage.setItem("barber-appointments", JSON.stringify(appointments));
-  }, [appointments, storageReady]);
+    if (!storageReady || !authSession) return;
+    window.localStorage.setItem(getMasterStorageKey(authSession.email, "appointments"), JSON.stringify(appointments));
+  }, [appointments, authSession, storageReady]);
 
   useEffect(() => {
-    if (!storageReady) return;
-    window.localStorage.setItem("barber-blocked-times", JSON.stringify(blockedTimes));
-  }, [blockedTimes, storageReady]);
+    if (!storageReady || !authSession) return;
+    window.localStorage.setItem(getMasterStorageKey(authSession.email, "blocked-times"), JSON.stringify(blockedTimes));
+  }, [authSession, blockedTimes, storageReady]);
 
   useEffect(() => {
-    if (!storageReady) return;
-    window.localStorage.setItem("barber-master-profile", JSON.stringify(masterProfile));
-  }, [masterProfile, storageReady]);
+    if (!storageReady || !authSession) return;
+    window.localStorage.setItem(getMasterStorageKey(authSession.email, "master-profile"), JSON.stringify(masterProfile));
+
+    const accounts = getStoredAccounts();
+    const accountExists = accounts.some((account) => account.email === authSession.email);
+    const nextAccounts = accountExists
+      ? accounts.map((account) =>
+          account.email === authSession.email
+            ? { ...account, name: masterProfile.displayName || account.name, slug: masterProfile.slug || account.slug }
+            : account,
+        )
+      : [
+          ...accounts,
+          {
+            email: authSession.email,
+            name: masterProfile.displayName || authSession.email,
+            password: "",
+            slug: masterProfile.slug || normalizeEmailSlug(authSession.email),
+            createdAt: new Date().toISOString(),
+          },
+        ];
+    window.localStorage.setItem(accountsKey, JSON.stringify(nextAccounts));
+  }, [authSession, masterProfile, storageReady]);
 
   const selectedDateObject = useMemo(() => {
     const [year, month, day] = selectedDate.split("-").map(Number);
@@ -264,6 +357,11 @@ export default function DashboardPage() {
     } catch {
       showToast("Не удалось скопировать ссылку");
     }
+  };
+
+  const logout = () => {
+    window.localStorage.removeItem(sessionKey);
+    router.replace("/login");
   };
 
   const selectToday = () => {
@@ -449,6 +547,13 @@ export default function DashboardPage() {
               </button>
             ))}
           </nav>
+          <button
+            type="button"
+            onClick={logout}
+            className="mt-4 w-full rounded-xl border border-border bg-white px-3 py-3 text-left text-lg font-semibold text-text transition hover:bg-section"
+          >
+            Выйти
+          </button>
         </aside>
 
         <section className="space-y-5">
@@ -524,8 +629,10 @@ export default function DashboardPage() {
 
           {section === "Настройки" && (
             <SettingsSection
+              email={authSession?.email || ""}
               bookingUrl={bookingUrl}
               copyLink={copyLink}
+              logout={logout}
               masterProfile={masterProfile}
               setMasterProfile={setMasterProfile}
             />
@@ -534,8 +641,8 @@ export default function DashboardPage() {
       </div>
 
       <nav className="fixed bottom-0 left-0 right-0 z-20 border-t border-border bg-white/95 p-2 backdrop-blur md:hidden">
-        <div className="mx-auto grid max-w-4xl grid-cols-3 gap-2">
-          {nav.slice(0, 6).map((item) => (
+        <div className="mx-auto grid max-w-4xl grid-cols-4 gap-2">
+          {nav.slice(0, 3).map((item) => (
             <button
               key={item}
               type="button"
@@ -545,6 +652,9 @@ export default function DashboardPage() {
               {item}
             </button>
           ))}
+          <button type="button" onClick={logout} className="rounded-xl px-2 py-2 text-xs font-semibold text-text">
+            Выйти
+          </button>
         </div>
       </nav>
 
@@ -1279,17 +1389,39 @@ function MetricCard({ label, value }: { label: string; value: string }) {
 }
 
 function SettingsSection(props: {
+  email: string;
   bookingUrl: string;
   copyLink: () => void;
+  logout: () => void;
   masterProfile: MasterProfile;
   setMasterProfile: React.Dispatch<React.SetStateAction<MasterProfile>>;
 }) {
+  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=12&data=${encodeURIComponent(props.bookingUrl)}`;
+  const masterLabel = props.masterProfile.displayName.trim() || props.masterProfile.slug || "Мастер";
+  const updateSlug = (value: string) => {
+    const slug = normalizeSlug(value);
+    if (!slug) {
+      props.setMasterProfile((current) => ({ ...current, slug: "" }));
+      return;
+    }
+
+    const slugTaken = getStoredAccounts().some((account) => account.email !== props.email && account.slug === slug);
+    const uniqueSlug = slugTaken ? `${slug}-${normalizeEmailSlug(props.email)}` : slug;
+    props.setMasterProfile((current) => ({ ...current, slug: uniqueSlug }));
+  };
+  const fillEmptySlug = () => {
+    props.setMasterProfile((current) => ({
+      ...current,
+      slug: current.slug || normalizeEmailSlug(props.email),
+    }));
+  };
+
   return (
     <div className="space-y-5">
       <article className="saas-card max-w-4xl space-y-5 p-6">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Настройки мастера</h1>
-          <p className="mt-2 text-muted">Имя или ник можно показывать на странице онлайн-записи либо скрыть.</p>
+          <p className="mt-2 text-muted">Личный кабинет: {props.email}</p>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
@@ -1306,10 +1438,13 @@ function SettingsSection(props: {
             <span className="text-sm font-medium text-muted">Ник для ссылки</span>
             <input
               value={props.masterProfile.slug}
-              onChange={(event) => props.setMasterProfile((current) => ({ ...current, slug: normalizeSlug(event.target.value) }))}
+              onChange={(event) => updateSlug(event.target.value)}
+              onBlur={fillEmptySlug}
+              pattern="[a-z0-9-]+"
               className="w-full rounded-xl border border-border px-4 py-3"
               placeholder="anna-smirnova"
             />
+            <span className="block text-xs text-muted">Только латинские буквы, цифры и дефис.</span>
           </label>
         </div>
 
@@ -1322,14 +1457,43 @@ function SettingsSection(props: {
         >
           {props.masterProfile.showOnBookingPage ? "Имя отображается на странице записи" : "Имя скрыто на странице записи"}
         </button>
+
+        <button type="button" onClick={props.logout} className="rounded-2xl border border-border bg-white px-5 py-3 font-semibold text-text">
+          Выйти из кабинета
+        </button>
       </article>
 
       <article className="saas-card max-w-4xl space-y-3 p-6">
-        <h2 className="text-2xl font-semibold">Ссылка для записи</h2>
-        <p className="break-all text-accent">{props.bookingUrl}</p>
-        <button type="button" onClick={props.copyLink} className="rounded-xl bg-accent px-4 py-2 font-semibold text-white">
-          Скопировать ссылку
-        </button>
+        <div className="grid gap-5 md:grid-cols-[1fr_auto] md:items-start">
+          <div className="space-y-3">
+            <div>
+              <h2 className="text-2xl font-semibold">Ссылка для записи</h2>
+              <p className="mt-1 text-muted">QR-код создается отдельно для каждого мастера по его личной ссылке.</p>
+            </div>
+            <p className="break-all text-accent">{props.bookingUrl}</p>
+            <button type="button" onClick={props.copyLink} className="rounded-xl bg-accent px-4 py-2 font-semibold text-white">
+              Скопировать ссылку
+            </button>
+          </div>
+
+          <div className="w-full rounded-2xl border border-border bg-white p-4 md:w-[276px]">
+            <div className="mx-auto flex h-[244px] w-[244px] items-center justify-center rounded-xl bg-white">
+              <img
+                src={qrCodeUrl}
+                alt={`QR-код для записи к мастеру ${masterLabel}`}
+                className="h-[240px] w-[240px]"
+              />
+            </div>
+            <p className="mt-3 text-center text-sm font-medium text-text">{masterLabel}</p>
+            <a
+              href={qrCodeUrl}
+              download={`qr-${props.masterProfile.slug || "master"}.png`}
+              className="mt-3 block rounded-xl border border-border px-4 py-2 text-center font-semibold text-text hover:bg-section"
+            >
+              Скачать QR-код
+            </a>
+          </div>
+        </div>
       </article>
     </div>
   );
