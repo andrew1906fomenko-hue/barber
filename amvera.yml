@@ -1,0 +1,11 @@
+meta:
+  environment: node
+
+run:
+  command: npm run start
+  containerPort: 3000
+
+build:
+  commands:
+    - npm install
+    - npm run build
