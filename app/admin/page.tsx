@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -93,14 +93,14 @@ export default function AdminPage() {
       const data = (await response.json()) as { success: boolean; users?: MasterAccount[]; error?: string };
 
       if (!response.ok || !data.success || !data.users) {
-        showToast(data.error || "Р СњР Вµ РЎС“Р Т‘Р В°Р В»Р С•РЎРѓРЎРЉ Р В·Р В°Р С–РЎР‚РЎС“Р В·Р С‘РЎвЂљРЎРЉ Р СР В°РЎРѓРЎвЂљР ВµРЎР‚Р С•Р Р†");
+        showToast(data.error || "Не удалось загрузить мастеров");
         return;
       }
 
       setAccounts(data.users);
       setSelectedEmail((current) => (current && data.users!.some((account) => account.email === current) ? current : data.users![0]?.email || ""));
     } catch {
-      showToast("Р СњР Вµ РЎС“Р Т‘Р В°Р В»Р С•РЎРѓРЎРЉ Р С—Р С•Р Т‘Р С”Р В»РЎР‹РЎвЂЎР С‘РЎвЂљРЎРЉРЎРѓРЎРЏ Р С” РЎРѓР ВµРЎР‚Р Р†Р ВµРЎР‚РЎС“");
+      showToast("Не удалось подключиться к серверу");
     }
   };
 
@@ -140,7 +140,7 @@ export default function AdminPage() {
   const login = (event: React.FormEvent) => {
     event.preventDefault();
     if (password !== adminPassword) {
-      showToast("РќРµРІРµСЂРЅС‹Р№ РїР°СЂРѕР»СЊ Р°РґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂР°");
+      showToast("Неверный пароль администратора");
       return;
     }
 
@@ -156,7 +156,7 @@ export default function AdminPage() {
 
     const normalizedValue = field === "slug" ? normalizeSlug(value) : value;
     if (field === "slug") {
-      showToast("РўР°РєР°СЏ СЃСЃС‹Р»РєР° СѓР¶Рµ Р·Р°РЅСЏС‚Р°");
+      showToast("Такая ссылка уже занята");
       return;
     }
 
@@ -166,11 +166,11 @@ export default function AdminPage() {
       body: JSON.stringify({ email: selectedAccount.email, [field]: normalizedValue }),
     });
     await refresh();
-    showToast("Р”Р°РЅРЅС‹Рµ СЃРѕС…СЂР°РЅРµРЅС‹");
+    showToast("Данные сохранены");
   };
 
   const toggleBookingName = () => {
-    showToast("РРјСЏ РјР°СЃС‚РµСЂР° Р±РµСЂРµС‚СЃСЏ РёР· PostgreSQL.");
+    showToast("Имя мастера берется из PostgreSQL.");
   };
 
   const enterMasterCabinet = async () => {
@@ -184,18 +184,18 @@ export default function AdminPage() {
     if (response.ok) {
       window.location.href = "/dashboard";
     } else {
-      showToast("РќРµ СѓРґР°Р»РѕСЃСЊ РѕС‚РєСЂС‹С‚СЊ РєР°Р±РёРЅРµС‚ РјР°СЃС‚РµСЂР°.");
+      showToast("Не удалось открыть кабинет мастера.");
     }
   };
 
   const deleteMaster = async () => {
     if (!selectedAccount) return;
-    const approved = window.confirm(`РЈРґР°Р»РёС‚СЊ РјР°СЃС‚РµСЂР° ${selectedAccount.email} Рё РІСЃРµ РµРіРѕ РґР°РЅРЅС‹Рµ?`);
+    const approved = window.confirm(`Удалить мастера ${selectedAccount.email} и все его данные?`);
     if (!approved) return;
 
     await fetch(`/api/users?email=${encodeURIComponent(selectedAccount.email)}`, { method: "DELETE" });
     await refresh();
-    showToast("РњР°СЃС‚РµСЂ СѓРґР°Р»РµРЅ");
+    showToast("Мастер удален");
   };
 
   if (!isAuthorized) {
@@ -206,13 +206,13 @@ export default function AdminPage() {
             <Link href="/" className="text-sm font-semibold text-accent">
               Beauty Time
             </Link>
-            <h1 className="mt-5 text-4xl font-semibold tracking-tight md:text-5xl">РђРґРјРёРЅ-РїР°РЅРµР»СЊ</h1>
-            <p className="mt-4 max-w-xl text-lg text-muted">РЈРїСЂР°РІР»РµРЅРёРµ РјР°СЃС‚РµСЂР°РјРё, РєР°Р±РёРЅРµС‚Р°РјРё, Р·Р°РїРёСЃСЏРјРё, СѓСЃР»СѓРіР°РјРё Рё РїСѓР±Р»РёС‡РЅС‹РјРё СЃСЃС‹Р»РєР°РјРё.</p>
+            <h1 className="mt-5 text-4xl font-semibold tracking-tight md:text-5xl">Админ-панель</h1>
+            <p className="mt-4 max-w-xl text-lg text-muted">Управление мастерами, кабинетами, записями, услугами и публичными ссылками.</p>
           </div>
 
           <form onSubmit={login} className="saas-card space-y-4 p-6">
             <label className="space-y-2">
-              <span className="text-sm font-medium text-muted">РџР°СЂРѕР»СЊ Р°РґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂР°</span>
+              <span className="text-sm font-medium text-muted">Пароль администратора</span>
               <input
                 type="password"
                 value={password}
@@ -222,7 +222,7 @@ export default function AdminPage() {
               />
             </label>
             <button type="submit" className="w-full rounded-2xl bg-accent px-5 py-3 font-semibold text-white">
-              Р’РѕР№С‚Рё
+              Войти
             </button>
           </form>
         </section>
@@ -239,23 +239,23 @@ export default function AdminPage() {
             <Link href="/" className="text-sm font-semibold text-accent">
               Beauty Time
             </Link>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight md:text-4xl">РђРґРјРёРЅ-РїР°РЅРµР»СЊ</h1>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight md:text-4xl">Админ-панель</h1>
           </div>
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={refresh} className="rounded-xl border border-border bg-white px-4 py-2 font-semibold text-text">
-              РћР±РЅРѕРІРёС‚СЊ
+              Обновить
             </button>
             <button type="button" onClick={logoutAdmin} className="rounded-xl border border-border bg-white px-4 py-2 font-semibold text-text">
-              Р’С‹Р№С‚Рё
+              Выйти
             </button>
           </div>
         </header>
 
         <section className="grid gap-4 md:grid-cols-4">
-          <Metric label="РњР°СЃС‚РµСЂРѕРІ" value={accounts.length.toString()} />
-          <Metric label="РЈСЃР»СѓРі" value={totals.services.toString()} />
-          <Metric label="Р—Р°РїРёСЃРµР№" value={totals.appointments.toString()} />
-          <Metric label="Р’С‹СЂСѓС‡РєР°" value={`${totals.revenue.toLocaleString("ru-RU")} СЂСѓР±.`} />
+          <Metric label="Мастеров" value={accounts.length.toString()} />
+          <Metric label="Услуг" value={totals.services.toString()} />
+          <Metric label="Записей" value={totals.appointments.toString()} />
+          <Metric label="Выручка" value={`${totals.revenue.toLocaleString("ru-RU")} руб.`} />
         </section>
 
         <section className="grid gap-5 xl:grid-cols-[360px_1fr]">
@@ -264,12 +264,12 @@ export default function AdminPage() {
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               className="w-full rounded-xl border border-border px-4 py-3"
-              placeholder="РџРѕРёСЃРє РїРѕ email, РёРјРµРЅРё РёР»Рё СЃСЃС‹Р»РєРµ"
+              placeholder="Поиск по email, имени или ссылке"
             />
 
             <div className="space-y-2">
               {filteredAccounts.length === 0 ? (
-                <p className="rounded-xl bg-white p-4 text-muted">РњР°СЃС‚РµСЂРѕРІ РїРѕРєР° РЅРµС‚.</p>
+                <p className="rounded-xl bg-white p-4 text-muted">Мастеров пока нет.</p>
               ) : (
                 filteredAccounts.map((account) => {
                   const profile = getProfile(account);
@@ -284,7 +284,7 @@ export default function AdminPage() {
                     >
                       <p className="font-semibold">{profile.displayName || account.name}</p>
                       <p className="break-all text-sm text-muted">{account.email}</p>
-                      <p className="mt-1 text-sm text-accent">/m/{profile.slug} В· {account.appointmentsCount} Р·Р°РїРёСЃРµР№</p>
+                      <p className="mt-1 text-sm text-accent">/m/{profile.slug} · {account.appointmentsCount} записей</p>
                     </button>
                   );
                 })
@@ -302,17 +302,17 @@ export default function AdminPage() {
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <button type="button" onClick={enterMasterCabinet} className="rounded-xl bg-accent px-4 py-2 font-semibold text-white">
-                      Р’РѕР№С‚Рё РєР°Рє РјР°СЃС‚РµСЂ
+                      Войти как мастер
                     </button>
                     <button type="button" onClick={deleteMaster} className="rounded-xl border border-red-200 bg-white px-4 py-2 font-semibold text-red-700">
-                      РЈРґР°Р»РёС‚СЊ
+                      Удалить
                     </button>
                   </div>
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-3">
                   <label className="space-y-2">
-                    <span className="text-sm font-medium text-muted">РРјСЏ РјР°СЃС‚РµСЂР°</span>
+                    <span className="text-sm font-medium text-muted">Имя мастера</span>
                     <input
                       key={`name-${selectedAccount.email}`}
                       defaultValue={selectedProfile.displayName || selectedAccount.name}
@@ -321,7 +321,7 @@ export default function AdminPage() {
                     />
                   </label>
                   <label className="space-y-2">
-                    <span className="text-sm font-medium text-muted">РЎСЃС‹Р»РєР°</span>
+                    <span className="text-sm font-medium text-muted">Ссылка</span>
                     <input
                       key={`slug-${selectedAccount.email}`}
                       defaultValue={selectedProfile.slug}
@@ -329,10 +329,10 @@ export default function AdminPage() {
                       pattern="[a-z0-9-]+"
                       className="w-full rounded-xl border border-border px-4 py-3"
                     />
-                    <span className="block text-xs text-muted">РўРѕР»СЊРєРѕ Р»Р°С‚РёРЅРёС†Р°, С†РёС„СЂС‹ Рё РґРµС„РёСЃ.</span>
+                    <span className="block text-xs text-muted">Только латиница, цифры и дефис.</span>
                   </label>
                   <label className="space-y-2">
-                    <span className="text-sm font-medium text-muted">РќРѕРІС‹Р№ РїР°СЂРѕР»СЊ</span>
+                    <span className="text-sm font-medium text-muted">Новый пароль</span>
                     <input
                       key={`password-${selectedAccount.email}`}
                       defaultValue={selectedAccount.password}
@@ -350,7 +350,7 @@ export default function AdminPage() {
                       selectedProfile.showOnBookingPage ? "bg-accent text-white" : "border border-border bg-white text-text"
                     }`}
                   >
-                    {selectedProfile.showOnBookingPage ? "РРјСЏ РІРёРґРЅРѕ РєР»РёРµРЅС‚Р°Рј" : "РРјСЏ СЃРєСЂС‹С‚Рѕ"}
+                    {selectedProfile.showOnBookingPage ? "Имя видно клиентам" : "Имя скрыто"}
                   </button>
                   <Link href={`/m/${selectedProfile.slug}`} target="_blank" className="break-all text-sm font-semibold text-accent">
                     {typeof window === "undefined" ? `/m/${selectedProfile.slug}` : `${window.location.origin}/m/${selectedProfile.slug}`}
@@ -359,24 +359,24 @@ export default function AdminPage() {
               </article>
 
               <section className="grid gap-5 lg:grid-cols-2">
-                <DataList title="РЈСЃР»СѓРіРё" empty="РЈСЃР»СѓРі РїРѕРєР° РЅРµС‚">
+                <DataList title="Услуги" empty="Услуг пока нет">
                   {selectedServices.map((service) => (
                     <article key={service.id} className="rounded-xl border border-border bg-white p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <p className="text-lg font-semibold">{service.title}</p>
-                          <p className="text-sm text-muted">{service.category || "Р‘РµР· РєР°С‚РµРіРѕСЂРёРё"}</p>
+                          <p className="text-sm text-muted">{service.category || "Без категории"}</p>
                         </div>
                         <span className={`rounded-full px-3 py-1 text-xs font-semibold ${service.active ? "bg-accentSoft text-accent" : "bg-section text-muted"}`}>
-                          {service.active ? "РђРєС‚РёРІРЅР°" : "РЎРєСЂС‹С‚Р°"}
+                          {service.active ? "Активна" : "Скрыта"}
                         </span>
                       </div>
-                      <p className="mt-2 text-muted">{service.duration} РјРёРЅ В· {service.price.toLocaleString("ru-RU")} СЂСѓР±.</p>
+                      <p className="mt-2 text-muted">{service.duration} мин · {service.price.toLocaleString("ru-RU")} руб.</p>
                     </article>
                   ))}
                 </DataList>
 
-                <DataList title="Р—Р°РїРёСЃРё" empty="Р—Р°РїРёСЃРµР№ РїРѕРєР° РЅРµС‚">
+                <DataList title="Записи" empty="Записей пока нет">
                   {selectedAppointments
                     .slice()
                     .sort((a, b) => `${b.date} ${b.time}`.localeCompare(`${a.date} ${a.time}`))
@@ -384,9 +384,9 @@ export default function AdminPage() {
                       const service = selectedServices.find((item) => item.id === appointment.serviceId);
                       return (
                         <article key={appointment.id} className="rounded-xl border border-border bg-white p-4">
-                          <p className="text-lg font-semibold">{appointment.date} В· {appointment.time}</p>
-                          <p className="text-muted">{appointment.client} В· {appointment.phone}</p>
-                          <p className="mt-1 text-sm text-muted">{service?.title || "РЈСЃР»СѓРіР° СѓРґР°Р»РµРЅР°"} В· {appointment.status}</p>
+                          <p className="text-lg font-semibold">{appointment.date} · {appointment.time}</p>
+                          <p className="text-muted">{appointment.client} · {appointment.phone}</p>
+                          <p className="mt-1 text-sm text-muted">{service?.title || "Услуга удалена"} · {appointment.status}</p>
                         </article>
                       );
                     })}
@@ -394,7 +394,7 @@ export default function AdminPage() {
               </section>
             </section>
           ) : (
-            <article className="saas-card p-6 text-muted">Р—Р°СЂРµРіРёСЃС‚СЂРёСЂСѓР№С‚Рµ РїРµСЂРІРѕРіРѕ РјР°СЃС‚РµСЂР°, С‡С‚РѕР±С‹ Р·РґРµСЃСЊ РїРѕСЏРІРёР»РёСЃСЊ РґР°РЅРЅС‹Рµ.</article>
+            <article className="saas-card p-6 text-muted">Зарегистрируйте первого мастера, чтобы здесь появились данные.</article>
           )}
         </section>
       </div>
