@@ -1,32 +1,12 @@
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { createUsersTable, pool } from "../../../lib/db";
-
-const normalizeEmailSlug = (email: string) =>
-  email
-    .split("@")[0]
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "") || "master";
+import { getCurrentUserAndMaster } from "../../../lib/db";
 
 export async function GET() {
   try {
-    const email = (await cookies()).get("user_email")?.value;
+    const session = await getCurrentUserAndMaster();
 
-    if (!email) {
-      return NextResponse.json({ success: false, error: "Нет активной сессии." }, { status: 401 });
-    }
-
-    await createUsersTable();
-
-    const result = await pool.query<{ email: string; name: string }>(
-      "SELECT email, name FROM users WHERE email = $1",
-      [email],
-    );
-
-    const user = result.rows[0];
-    if (!user) {
-      const response = NextResponse.json({ success: false, error: "Пользователь не найден." }, { status: 401 });
+    if (!session) {
+      const response = NextResponse.json({ success: false, error: "Нет активной сессии." }, { status: 401 });
       response.cookies.delete("user_email");
       return response;
     }
@@ -34,9 +14,16 @@ export async function GET() {
     return NextResponse.json({
       success: true,
       user: {
-        email: user.email,
-        name: user.name,
-        slug: normalizeEmailSlug(user.email),
+        id: session.user.id,
+        email: session.user.email,
+        name: session.user.name,
+        slug: session.master.slug,
+      },
+      master: session.master,
+      profile: {
+        displayName: session.master.name,
+        slug: session.master.slug,
+        showOnBookingPage: true,
       },
     });
   } catch (error) {

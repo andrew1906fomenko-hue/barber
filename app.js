@@ -1,4 +1,4 @@
-const SESSION_KEY = "fastbook_session_v1";
+﻿const SESSION_KEY = "fastbook_session_v1";
 const API_BASE = "/api";
 const IS_FILE_PROTOCOL = window.location.protocol === "file:";
 
@@ -113,7 +113,7 @@ function bindAuth() {
     const name = getValue("register-name");
     const email = getValue("register-email").toLowerCase();
     const password = getValue("register-password");
-    if (!name || !email || password.length < 6) return alert("Проверьте данные регистрации.");
+    if (!name || !email || password.length < 6) return alert("РџСЂРѕРІРµСЂСЊС‚Рµ РґР°РЅРЅС‹Рµ СЂРµРіРёСЃС‚СЂР°С†РёРё.");
     try {
       const { token, master } = await apiFetch("/auth/register", {
         method: "POST",
@@ -128,7 +128,7 @@ function bindAuth() {
       switchMasterView("calendar");
       renderMaster();
     } catch (error) {
-      alert(error.message || "Не удалось зарегистрироваться.");
+      alert(error.message || "РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°СЂРµРіРёСЃС‚СЂРёСЂРѕРІР°С‚СЊСЃСЏ.");
     }
   });
 
@@ -150,7 +150,7 @@ function bindAuth() {
       switchMasterView("calendar");
       renderMaster();
     } catch {
-      alert("Неверный email или пароль.");
+      alert("РќРµРІРµСЂРЅС‹Р№ email РёР»Рё РїР°СЂРѕР»СЊ.");
     }
   });
 }
@@ -210,12 +210,12 @@ function bindMaster() {
     const bufferMin = Number(getValue("buffer-min"));
     const workDays = [...elements.masterForm.querySelectorAll(".weekdays input:checked")].map((item) => Number(item.value));
 
-    if (!slug || !/^[a-z0-9-]+$/.test(slug)) return alert("Ссылка мастера может содержать только латиницу, цифры и дефис.");
-    if (toMinutes(workEnd) <= toMinutes(workStart)) return alert("Конец рабочего дня должен быть позже начала.");
-    if (!workDays.length) return alert("Выберите хотя бы один рабочий день.");
+    if (!slug || !/^[a-z0-9-]+$/.test(slug)) return alert("РЎСЃС‹Р»РєР° РјР°СЃС‚РµСЂР° РјРѕР¶РµС‚ СЃРѕРґРµСЂР¶Р°С‚СЊ С‚РѕР»СЊРєРѕ Р»Р°С‚РёРЅРёС†Сѓ, С†РёС„СЂС‹ Рё РґРµС„РёСЃ.");
+    if (toMinutes(workEnd) <= toMinutes(workStart)) return alert("РљРѕРЅРµС† СЂР°Р±РѕС‡РµРіРѕ РґРЅСЏ РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ РїРѕР·Р¶Рµ РЅР°С‡Р°Р»Р°.");
+    if (!workDays.length) return alert("Р’С‹Р±РµСЂРёС‚Рµ С…РѕС‚СЏ Р±С‹ РѕРґРёРЅ СЂР°Р±РѕС‡РёР№ РґРµРЅСЊ.");
 
     const duplicate = state.masters.find((m) => m.slug === slug && m.id !== state.activeMasterId);
-    if (duplicate) return alert("Такая ссылка уже занята.");
+    if (duplicate) return alert("РўР°РєР°СЏ СЃСЃС‹Р»РєР° СѓР¶Рµ Р·Р°РЅСЏС‚Р°.");
 
     let master = getActiveMaster();
     if (!master) {
@@ -247,7 +247,7 @@ function bindMaster() {
 
   elements.publishComment.addEventListener("click", () => {
     const master = getActiveMaster();
-    if (!master) return alert("Сначала сохраните данные мастера.");
+    if (!master) return alert("РЎРЅР°С‡Р°Р»Р° СЃРѕС…СЂР°РЅРёС‚Рµ РґР°РЅРЅС‹Рµ РјР°СЃС‚РµСЂР°.");
     master.notes = getValue("master-notes");
     persist();
     renderMaster();
@@ -257,7 +257,7 @@ function bindMaster() {
     event.preventDefault();
     const master = getActiveMaster();
     if (!master) {
-      alert("Сначала заполните данные в «Мой кабинет».");
+      alert("РЎРЅР°С‡Р°Р»Р° Р·Р°РїРѕР»РЅРёС‚Рµ РґР°РЅРЅС‹Рµ РІ В«РњРѕР№ РєР°Р±РёРЅРµС‚В».");
       return switchMasterView("profile");
     }
 
@@ -268,14 +268,14 @@ function bindMaster() {
     const durationMin = Number(getValue("service-duration"));
     const notes = getValue("service-notes");
 
-    if (!title || durationMin <= 0 || price < 0) return alert("Проверьте поля услуги.");
+    if (!title || durationMin <= 0 || price < 0) return alert("РџСЂРѕРІРµСЂСЊС‚Рµ РїРѕР»СЏ СѓСЃР»СѓРіРё.");
 
     if (master.editingServiceId) {
       const service = master.services.find((s) => s.id === master.editingServiceId);
       if (service) Object.assign(service, { title, price, durationMin, notes });
       master.editingServiceId = null;
-      elements.serviceForm.querySelector("button[type='submit']").textContent = "Добавить услугу";
-      elements.serviceModalTitle.textContent = "Добавить услугу";
+      elements.serviceForm.querySelector("button[type='submit']").textContent = "Р”РѕР±Р°РІРёС‚СЊ СѓСЃР»СѓРіСѓ";
+      elements.serviceModalTitle.textContent = "Р”РѕР±Р°РІРёС‚СЊ СѓСЃР»СѓРіСѓ";
     } else {
       master.services.push({ id: uid(), title, price, durationMin, notes });
     }
@@ -291,11 +291,11 @@ function bindMaster() {
   elements.openServiceModal.addEventListener("click", () => {
     const master = getActiveMaster();
     if (!master) {
-      alert("Сначала заполните данные в «Мой кабинет».");
+      alert("РЎРЅР°С‡Р°Р»Р° Р·Р°РїРѕР»РЅРёС‚Рµ РґР°РЅРЅС‹Рµ РІ В«РњРѕР№ РєР°Р±РёРЅРµС‚В».");
       return switchMasterView("profile");
     }
     master.editingServiceId = null;
-    elements.serviceModalTitle.textContent = "Добавить услугу";
+    elements.serviceModalTitle.textContent = "Р”РѕР±Р°РІРёС‚СЊ СѓСЃР»СѓРіСѓ";
     elements.serviceForm.reset();
     setValue("service-duration", "60");
     elements.serviceModal.showModal();
@@ -318,8 +318,8 @@ function bindMaster() {
       setValue("service-price", String(service.price));
       setValue("service-duration", String(service.durationMin));
       setValue("service-notes", service.notes || "");
-      elements.serviceModalTitle.textContent = "Редактировать услугу";
-      elements.serviceForm.querySelector("button[type='submit']").textContent = "Сохранить";
+      elements.serviceModalTitle.textContent = "Р РµРґР°РєС‚РёСЂРѕРІР°С‚СЊ СѓСЃР»СѓРіСѓ";
+      elements.serviceForm.querySelector("button[type='submit']").textContent = "РЎРѕС…СЂР°РЅРёС‚СЊ";
       elements.serviceModal.showModal();
       return;
     }
@@ -359,16 +359,16 @@ function bindMaster() {
     const appointment = master.appointments.find((item) => item.id === moveBtn.dataset.moveAppointment);
     if (!appointment) return;
     const service = master.services.find((item) => item.id === appointment.serviceId);
-    if (!service) return alert("Нельзя перенести: услуга удалена.");
+    if (!service) return alert("РќРµР»СЊР·СЏ РїРµСЂРµРЅРµСЃС‚Рё: СѓСЃР»СѓРіР° СѓРґР°Р»РµРЅР°.");
 
-    const newDate = window.prompt("Новая дата (YYYY-MM-DD):", appointment.date);
+    const newDate = window.prompt("РќРѕРІР°СЏ РґР°С‚Р° (YYYY-MM-DD):", appointment.date);
     if (!newDate) return;
-    if (!isDateAllowed(master, newDate)) return alert("На эту дату запись недоступна.");
+    if (!isDateAllowed(master, newDate)) return alert("РќР° СЌС‚Сѓ РґР°С‚Сѓ Р·Р°РїРёСЃСЊ РЅРµРґРѕСЃС‚СѓРїРЅР°.");
     const starts = findAvailableStarts(master, service, newDate, appointment.id);
-    if (!starts.length) return alert("На выбранную дату нет свободного времени.");
+    if (!starts.length) return alert("РќР° РІС‹Р±СЂР°РЅРЅСѓСЋ РґР°С‚Сѓ РЅРµС‚ СЃРІРѕР±РѕРґРЅРѕРіРѕ РІСЂРµРјРµРЅРё.");
 
-    const newTime = window.prompt(`Новое время (${starts.join(", ")}):`, starts[0]);
-    if (!newTime || !starts.includes(newTime)) return alert("Это время недоступно.");
+    const newTime = window.prompt(`РќРѕРІРѕРµ РІСЂРµРјСЏ (${starts.join(", ")}):`, starts[0]);
+    if (!newTime || !starts.includes(newTime)) return alert("Р­С‚Рѕ РІСЂРµРјСЏ РЅРµРґРѕСЃС‚СѓРїРЅРѕ.");
 
     appointment.date = newDate;
     appointment.start = newTime;
@@ -391,14 +391,14 @@ function bindClient(master) {
     const name = getValue("client-name");
 
     const service = master.services.find((s) => s.id === serviceId);
-    if (!service) return alert("Выберите услугу.");
-    if (!date || !start || !phone || !name) return alert("Заполните дату, время, телефон и имя.");
-    if (!isDateAllowed(master, date)) return alert("Выходной");
+    if (!service) return alert("Р’С‹Р±РµСЂРёС‚Рµ СѓСЃР»СѓРіСѓ.");
+    if (!date || !start || !phone || !name) return alert("Р—Р°РїРѕР»РЅРёС‚Рµ РґР°С‚Сѓ, РІСЂРµРјСЏ, С‚РµР»РµС„РѕРЅ Рё РёРјСЏ.");
+    if (!isDateAllowed(master, date)) return alert("Р’С‹С…РѕРґРЅРѕР№");
 
     const available = findAvailableStarts(master, service, date);
     if (!available.includes(start)) {
       renderAvailableTimes(master);
-      return alert("Выбранное время уже занято.");
+      return alert("Р’С‹Р±СЂР°РЅРЅРѕРµ РІСЂРµРјСЏ СѓР¶Рµ Р·Р°РЅСЏС‚Рѕ.");
     }
 
     const appointmentPayload = {
@@ -428,7 +428,7 @@ function bindClient(master) {
     elements.bookingDate.value = date;
     elements.bookingService.value = serviceId;
     renderAvailableTimes(master);
-    alert("Запись сохранена.");
+    alert("Р—Р°РїРёСЃСЊ СЃРѕС…СЂР°РЅРµРЅР°.");
   });
 }
 
@@ -445,7 +445,7 @@ function renderMaster() {
   setValue("buffer-min", String(master.bufferMin));
   setValue("master-notes", master.notes || "");
   document.getElementById("hide-price").checked = master.showPrice === false;
-  elements.serviceForm.querySelector("button[type='submit']").textContent = "Сохранить";
+  elements.serviceForm.querySelector("button[type='submit']").textContent = "РЎРѕС…СЂР°РЅРёС‚СЊ";
 
   elements.masterForm.querySelectorAll(".weekdays input").forEach((box) => {
     box.checked = master.workDays.includes(Number(box.value));
@@ -462,7 +462,7 @@ function renderMaster() {
 function renderServices(master) {
   elements.serviceList.innerHTML = "";
   if (!master.services.length) {
-    elements.serviceList.innerHTML = `<li class="muted">Услуги пока не добавлены.</li>`;
+    elements.serviceList.innerHTML = `<li class="muted">РЈСЃР»СѓРіРё РїРѕРєР° РЅРµ РґРѕР±Р°РІР»РµРЅС‹.</li>`;
     return;
   }
 
@@ -470,10 +470,10 @@ function renderServices(master) {
     const li = document.createElement("li");
     li.className = "one-line";
     li.innerHTML = `
-      <span><strong>${escapeHtml(service.title)}</strong> · ${service.durationMin} мин · ${service.price} ₽ · ${escapeHtml(service.notes || "без нюансов")}</span>
+      <span><strong>${escapeHtml(service.title)}</strong> В· ${service.durationMin} РјРёРЅ В· ${service.price} в‚Ѕ В· ${escapeHtml(service.notes || "Р±РµР· РЅСЋР°РЅСЃРѕРІ")}</span>
       <span class="item-actions">
-        <button class="secondary" data-edit-service="${service.id}" type="button">Редактировать</button>
-        <button data-remove-service="${service.id}" type="button">Удалить</button>
+        <button class="secondary" data-edit-service="${service.id}" type="button">Р РµРґР°РєС‚РёСЂРѕРІР°С‚СЊ</button>
+        <button data-remove-service="${service.id}" type="button">РЈРґР°Р»РёС‚СЊ</button>
       </span>
     `;
     elements.serviceList.appendChild(li);
@@ -481,7 +481,7 @@ function renderServices(master) {
 }
 
 function renderMainCalendar(master) {
-  elements.toggleMainCalendar.textContent = mainCalendarExpanded ? "▴" : "▾";
+  elements.toggleMainCalendar.textContent = mainCalendarExpanded ? "в–ґ" : "в–ѕ";
   elements.mainPrevMonth.classList.toggle("is-nav-hidden", !mainCalendarExpanded);
   elements.mainNextMonth.classList.toggle("is-nav-hidden", !mainCalendarExpanded);
   elements.mainCalendar.classList.toggle("expanded", mainCalendarExpanded);
@@ -502,14 +502,14 @@ function renderMainCalendar(master) {
     return;
   }
 
-  elements.mainMonthLabel.textContent = "Ближайшие 7 дней";
+  elements.mainMonthLabel.textContent = "Р‘Р»РёР¶Р°Р№С€РёРµ 7 РґРЅРµР№";
   renderSevenDaysCalendar(master);
 }
 
 function renderSevenDaysCalendar(master) {
   elements.mainCalendar.innerHTML = "";
   const start = new Date();
-  const weekdays = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
+  const weekdays = ["Р’СЃ", "РџРЅ", "Р’С‚", "РЎСЂ", "Р§С‚", "РџС‚", "РЎР±"];
 
   const weekHeader = document.createElement("div");
   weekHeader.className = "week-header";
@@ -566,7 +566,7 @@ function renderMonthCalendar({ target, label, cursor, selectedDate, offDays, onC
 
   const weekHeader = document.createElement("div");
   weekHeader.className = "week-header";
-  ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].forEach((day) => {
+  ["РџРЅ", "Р’С‚", "РЎСЂ", "Р§С‚", "РџС‚", "РЎР±", "Р’СЃ"].forEach((day) => {
     const cell = document.createElement("div");
     cell.textContent = day;
     weekHeader.appendChild(cell);
@@ -607,14 +607,14 @@ function renderMonthCalendar({ target, label, cursor, selectedDate, offDays, onC
 
 function renderAppointments(master) {
   elements.appointmentsList.innerHTML = "";
-  elements.selectedDateTitle.textContent = `Записи на ${selectedMainDate}`;
+  elements.selectedDateTitle.textContent = `Р—Р°РїРёСЃРё РЅР° ${selectedMainDate}`;
 
   const items = master.appointments
     .filter((item) => item.date === selectedMainDate)
     .sort((a, b) => a.start.localeCompare(b.start));
 
   if (!items.length) {
-    elements.appointmentsList.innerHTML = `<li class="muted">На выбранную дату записей нет.</li>`;
+    elements.appointmentsList.innerHTML = `<li class="muted">РќР° РІС‹Р±СЂР°РЅРЅСѓСЋ РґР°С‚Сѓ Р·Р°РїРёСЃРµР№ РЅРµС‚.</li>`;
     return;
   }
 
@@ -623,10 +623,10 @@ function renderAppointments(master) {
     const li = document.createElement("li");
     li.className = "one-line";
     li.innerHTML = `
-      <span>${item.start}–${item.end} · ${escapeHtml(item.clientName)} · ${escapeHtml(item.clientPhone)} · ${escapeHtml(service?.notes || "без нюансов")}</span>
+      <span>${item.start}вЂ“${item.end} В· ${escapeHtml(item.clientName)} В· ${escapeHtml(item.clientPhone)} В· ${escapeHtml(service?.notes || "Р±РµР· РЅСЋР°РЅСЃРѕРІ")}</span>
       <span class="item-actions">
-        <button class="secondary" data-move-appointment="${item.id}" type="button">Перенести</button>
-        <button data-remove-appointment="${item.id}" type="button">Удалить</button>
+        <button class="secondary" data-move-appointment="${item.id}" type="button">РџРµСЂРµРЅРµСЃС‚Рё</button>
+        <button data-remove-appointment="${item.id}" type="button">РЈРґР°Р»РёС‚СЊ</button>
       </span>
     `;
     elements.appointmentsList.appendChild(li);
@@ -635,13 +635,13 @@ function renderAppointments(master) {
 
 function renderShare(master) {
   const link = `${window.location.origin}${window.location.pathname}?master=${master.slug}`;
-  elements.shareBox.innerHTML = `<strong>Ссылка для клиентов:</strong><br><a href="${link}" target="_blank" rel="noopener">${link}</a>`;
+  elements.shareBox.innerHTML = `<strong>РЎСЃС‹Р»РєР° РґР»СЏ РєР»РёРµРЅС‚РѕРІ:</strong><br><a href="${link}" target="_blank" rel="noopener">${link}</a>`;
 }
 
 function renderQr(master) {
   const link = `${window.location.origin}${window.location.pathname}?master=${master.slug}`;
   const qr = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(link)}`;
-  elements.qrBox.innerHTML = `<strong>QR-код</strong><img src="${qr}" alt="QR код мастера" loading="lazy" />`;
+  elements.qrBox.innerHTML = `<strong>QR-РєРѕРґ</strong><img src="${qr}" alt="QR РєРѕРґ РјР°СЃС‚РµСЂР°" loading="lazy" />`;
 }
 
 function renderClient(master) {
@@ -669,17 +669,17 @@ function renderClientServices(master) {
   if (!master.services.length) {
     const opt = document.createElement("option");
     opt.value = "";
-    opt.textContent = "У мастера пока нет услуг";
+    opt.textContent = "РЈ РјР°СЃС‚РµСЂР° РїРѕРєР° РЅРµС‚ СѓСЃР»СѓРі";
     elements.bookingService.appendChild(opt);
-    elements.bookingServiceCards.innerHTML = `<p class="muted">У мастера пока нет услуг.</p>`;
+    elements.bookingServiceCards.innerHTML = `<p class="muted">РЈ РјР°СЃС‚РµСЂР° РїРѕРєР° РЅРµС‚ СѓСЃР»СѓРі.</p>`;
     return;
   }
 
   master.services.forEach((service) => {
     const opt = document.createElement("option");
     opt.value = service.id;
-    const pricePart = master.showPrice === false ? "" : ` · ${service.price} ₽`;
-    opt.textContent = `${service.title} · ${service.durationMin} мин${pricePart}`;
+    const pricePart = master.showPrice === false ? "" : ` В· ${service.price} в‚Ѕ`;
+    opt.textContent = `${service.title} В· ${service.durationMin} РјРёРЅ${pricePart}`;
     elements.bookingService.appendChild(opt);
 
     const card = document.createElement("button");
@@ -688,7 +688,7 @@ function renderClientServices(master) {
     card.dataset.serviceId = service.id;
     card.innerHTML = `
       <strong>${escapeHtml(service.title)}</strong>
-      <span>${service.durationMin} мин${pricePart}</span>
+      <span>${service.durationMin} РјРёРЅ${pricePart}</span>
     `;
     card.addEventListener("click", () => {
       elements.bookingService.value = service.id;
@@ -717,7 +717,7 @@ function renderDateChips(master) {
     chip.dataset.date = iso;
     const weekday = date.toLocaleDateString("ru-RU", { weekday: "short" });
     const dayMonth = date.toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
-    chip.innerHTML = `<strong>${i === 0 ? "Сегодня" : weekday}</strong><span>${dayMonth}</span>`;
+    chip.innerHTML = `<strong>${i === 0 ? "РЎРµРіРѕРґРЅСЏ" : weekday}</strong><span>${dayMonth}</span>`;
     chip.disabled = !isDateAllowed(master, iso);
     chip.addEventListener("click", () => {
       elements.bookingDate.value = iso;
@@ -735,11 +735,11 @@ function renderAvailableTimes(master) {
   elements.bookingTime.value = "";
   elements.bookingTimeSlots.innerHTML = "";
 
-  if (!service || !date) return appendTimeText("Нет доступного времени");
-  if (!isDateAllowed(master, date)) return appendTimeText("Выходной");
+  if (!service || !date) return appendTimeText("РќРµС‚ РґРѕСЃС‚СѓРїРЅРѕРіРѕ РІСЂРµРјРµРЅРё");
+  if (!isDateAllowed(master, date)) return appendTimeText("Р’С‹С…РѕРґРЅРѕР№");
 
   const starts = findAvailableStarts(master, service, date);
-  if (!starts.length) return appendTimeText("Нет доступного времени");
+  if (!starts.length) return appendTimeText("РќРµС‚ РґРѕСЃС‚СѓРїРЅРѕРіРѕ РІСЂРµРјРµРЅРё");
 
   starts.forEach((time) => {
     const btn = document.createElement("button");
@@ -776,11 +776,11 @@ function updateBookingSubmitText() {
   const date = elements.bookingDate.value;
   const time = elements.bookingTime.value;
   if (!date || !time) {
-    elements.bookingSubmit.textContent = "Записаться";
+    elements.bookingSubmit.textContent = "Р—Р°РїРёСЃР°С‚СЊСЃСЏ";
     return;
   }
   const prettyDate = new Date(`${date}T00:00:00`).toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
-  elements.bookingSubmit.textContent = `Записаться на ${prettyDate} в ${time}`;
+  elements.bookingSubmit.textContent = `Р—Р°РїРёСЃР°С‚СЊСЃСЏ РЅР° ${prettyDate} РІ ${time}`;
 }
 
 function findAvailableStarts(master, service, date, ignoreAppointmentId = null) {
@@ -820,7 +820,7 @@ function getMasterBySlug(slug) {
 
 function loadState() {
   try {
-    const raw = localStorage.getItem(SESSION_KEY);
+    const raw = sessionStorage.getItem(SESSION_KEY);
     if (!raw) return { token: null, masters: [], activeMasterId: null };
     const parsed = JSON.parse(raw);
     return { token: parsed.token || null, masters: [], activeMasterId: null };
@@ -863,16 +863,16 @@ function isUuid(value) {
 }
 
 function saveSession(token) {
-  localStorage.setItem(SESSION_KEY, JSON.stringify({ token }));
+  sessionStorage.setItem(SESSION_KEY, JSON.stringify({ token }));
 }
 
 function clearSession() {
-  localStorage.removeItem(SESSION_KEY);
+  sessionStorage.removeItem(SESSION_KEY);
 }
 
 async function apiFetch(path, { method = "GET", token, body } = {}) {
   if (IS_FILE_PROTOCOL) {
-    throw new Error("Приложение нельзя открывать двойным кликом по index.html. Запустите через npm start и откройте http://localhost:3000.");
+    throw new Error("РџСЂРёР»РѕР¶РµРЅРёРµ РЅРµР»СЊР·СЏ РѕС‚РєСЂС‹РІР°С‚СЊ РґРІРѕР№РЅС‹Рј РєР»РёРєРѕРј РїРѕ index.html. Р—Р°РїСѓСЃС‚РёС‚Рµ С‡РµСЂРµР· npm start Рё РѕС‚РєСЂРѕР№С‚Рµ http://localhost:3000.");
   }
   const response = await fetch(`${API_BASE}${path}`, {
     method,
@@ -924,3 +924,5 @@ function normalizeSlug(value) {
 function escapeHtml(value) {
   return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
 }
+
+

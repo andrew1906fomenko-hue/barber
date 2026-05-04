@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server";
-import { createUsersTable, pool } from "../../../lib/db";
-
-const normalizeEmail = (value: string) => value.trim().toLowerCase();
+import { initDb, normalizeEmail, pool } from "../../../lib/db";
 
 export async function POST(request: Request) {
   try {
@@ -14,20 +12,14 @@ export async function POST(request: Request) {
     const password = body.password || "";
 
     if (!email || !password) {
-      return NextResponse.json(
-        { success: false, error: "Введите email и пароль." },
-        { status: 400 },
-      );
+      return NextResponse.json({ success: false, error: "Введите email и пароль." }, { status: 400 });
     }
 
-    await createUsersTable();
+    await initDb();
 
-    const user = await pool.query("SELECT email FROM users WHERE email = $1 AND password = $2", [email, password]);
-    if (!user.rowCount) {
-      return NextResponse.json(
-        { success: false, error: "Неверный email или пароль." },
-        { status: 401 },
-      );
+    const result = await pool.query<{ email: string }>("SELECT email FROM users WHERE email = $1 AND password = $2", [email, password]);
+    if (!result.rowCount) {
+      return NextResponse.json({ success: false, error: "Неверный email или пароль." }, { status: 401 });
     }
 
     const response = NextResponse.json({ success: true });
@@ -41,9 +33,6 @@ export async function POST(request: Request) {
     return response;
   } catch (error) {
     console.error("Login error:", error);
-    return NextResponse.json(
-      { success: false, error: "Ошибка сервера при входе." },
-      { status: 500 },
-    );
+    return NextResponse.json({ success: false, error: "Ошибка сервера при входе." }, { status: 500 });
   }
 }

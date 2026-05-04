@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -8,6 +8,9 @@ type MasterAccount = {
   name: string;
   password: string;
   slug: string;
+  servicesCount: number;
+  appointmentsCount: number;
+  revenue: number;
   createdAt: string;
 };
 
@@ -38,23 +41,12 @@ type Appointment = {
 
 const adminPassword = "admin";
 
-const getMasterStorageKey = (email: string, key: string) => `barber-master:${email}:${key}`;
-
 const normalizeSlug = (value: string) =>
   value
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "") || "master";
-
-const readJson = <T,>(key: string, fallback: T): T => {
-  try {
-    const raw = window.localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : fallback;
-  } catch {
-    return fallback;
-  }
-};
 
 const getProfile = (account: MasterAccount) =>
   ({
@@ -63,36 +55,26 @@ const getProfile = (account: MasterAccount) =>
     showOnBookingPage: true,
   }) as MasterProfile;
 
-const getServices = (email: string) => readJson<Service[]>(getMasterStorageKey(email, "services"), []);
-const getAppointments = (email: string) => readJson<Appointment[]>(getMasterStorageKey(email, "appointments"), []);
-
 export default function AdminPage() {
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [password, setPassword] = useState("");
   const [accounts, setAccounts] = useState<MasterAccount[]>([]);
   const [selectedEmail, setSelectedEmail] = useState("");
+  const [selectedServices, setSelectedServices] = useState<Service[]>([]);
+  const [selectedAppointments, setSelectedAppointments] = useState<Appointment[]>([]);
   const [query, setQuery] = useState("");
   const [toast, setToast] = useState("");
 
   const selectedAccount = accounts.find((account) => account.email === selectedEmail) || accounts[0] || null;
   const selectedProfile = selectedAccount ? getProfile(selectedAccount) : null;
-  const selectedServices = selectedAccount ? getServices(selectedAccount.email) : [];
-  const selectedAppointments = selectedAccount ? getAppointments(selectedAccount.email) : [];
 
   const totals = useMemo(() => {
     return accounts.reduce(
       (sum, account) => {
-        const services = getServices(account.email);
-        const appointments = getAppointments(account.email);
-        const revenue = appointments.reduce((total, appointment) => {
-          const service = services.find((item) => item.id === appointment.serviceId);
-          return total + (service?.price || 0);
-        }, 0);
-
         return {
-          services: sum.services + services.length,
-          appointments: sum.appointments + appointments.length,
-          revenue: sum.revenue + revenue,
+          services: sum.services + account.servicesCount,
+          appointments: sum.appointments + account.appointmentsCount,
+          revenue: sum.revenue + account.revenue,
         };
       },
       { services: 0, appointments: 0, revenue: 0 },
@@ -111,14 +93,14 @@ export default function AdminPage() {
       const data = (await response.json()) as { success: boolean; users?: MasterAccount[]; error?: string };
 
       if (!response.ok || !data.success || !data.users) {
-        showToast(data.error || "РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ РјР°СЃС‚РµСЂРѕРІ");
+        showToast(data.error || "Р СњР Вµ РЎС“Р Т‘Р В°Р В»Р С•РЎРѓРЎРЉ Р В·Р В°Р С–РЎР‚РЎС“Р В·Р С‘РЎвЂљРЎРЉ Р СР В°РЎРѓРЎвЂљР ВµРЎР‚Р С•Р Р†");
         return;
       }
 
       setAccounts(data.users);
       setSelectedEmail((current) => (current && data.users!.some((account) => account.email === current) ? current : data.users![0]?.email || ""));
     } catch {
-      showToast("РќРµ СѓРґР°Р»РѕСЃСЊ РїРѕРґРєР»СЋС‡РёС‚СЊСЃСЏ Рє СЃРµСЂРІРµСЂСѓ");
+      showToast("Р СњР Вµ РЎС“Р Т‘Р В°Р В»Р С•РЎРѓРЎРЉ Р С—Р С•Р Т‘Р С”Р В»РЎР‹РЎвЂЎР С‘РЎвЂљРЎРЉРЎРѓРЎРЏ Р С” РЎРѓР ВµРЎР‚Р Р†Р ВµРЎР‚РЎС“");
     }
   };
 
@@ -133,10 +115,32 @@ export default function AdminPage() {
     }
   }, [isAuthorized]);
 
+  useEffect(() => {
+    const loadSelectedMasterData = async () => {
+      if (!selectedProfile) {
+        setSelectedServices([]);
+        setSelectedAppointments([]);
+        return;
+      }
+
+      const response = await fetch(`/api/masters/${encodeURIComponent(selectedProfile.slug)}`);
+      const data = (await response.json()) as {
+        success: boolean;
+        services?: Service[];
+        appointments?: Appointment[];
+      };
+
+      setSelectedServices(data.success ? data.services || [] : []);
+      setSelectedAppointments(data.success ? data.appointments || [] : []);
+    };
+
+    void loadSelectedMasterData();
+  }, [selectedProfile?.slug]);
+
   const login = (event: React.FormEvent) => {
     event.preventDefault();
     if (password !== adminPassword) {
-      showToast("Неверный пароль администратора");
+      showToast("РќРµРІРµСЂРЅС‹Р№ РїР°СЂРѕР»СЊ Р°РґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂР°");
       return;
     }
 
@@ -152,7 +156,7 @@ export default function AdminPage() {
 
     const normalizedValue = field === "slug" ? normalizeSlug(value) : value;
     if (field === "slug") {
-      showToast("Такая ссылка уже занята");
+      showToast("РўР°РєР°СЏ СЃСЃС‹Р»РєР° СѓР¶Рµ Р·Р°РЅСЏС‚Р°");
       return;
     }
 
@@ -162,11 +166,11 @@ export default function AdminPage() {
       body: JSON.stringify({ email: selectedAccount.email, [field]: normalizedValue }),
     });
     await refresh();
-    showToast("Данные сохранены");
+    showToast("Р”Р°РЅРЅС‹Рµ СЃРѕС…СЂР°РЅРµРЅС‹");
   };
 
   const toggleBookingName = () => {
-    showToast("Имя мастера берется из PostgreSQL.");
+    showToast("РРјСЏ РјР°СЃС‚РµСЂР° Р±РµСЂРµС‚СЃСЏ РёР· PostgreSQL.");
   };
 
   const enterMasterCabinet = async () => {
@@ -180,21 +184,18 @@ export default function AdminPage() {
     if (response.ok) {
       window.location.href = "/dashboard";
     } else {
-      showToast("Не удалось открыть кабинет мастера.");
+      showToast("РќРµ СѓРґР°Р»РѕСЃСЊ РѕС‚РєСЂС‹С‚СЊ РєР°Р±РёРЅРµС‚ РјР°СЃС‚РµСЂР°.");
     }
   };
 
   const deleteMaster = async () => {
     if (!selectedAccount) return;
-    const approved = window.confirm(`Удалить мастера ${selectedAccount.email} и все его данные?`);
+    const approved = window.confirm(`РЈРґР°Р»РёС‚СЊ РјР°СЃС‚РµСЂР° ${selectedAccount.email} Рё РІСЃРµ РµРіРѕ РґР°РЅРЅС‹Рµ?`);
     if (!approved) return;
 
     await fetch(`/api/users?email=${encodeURIComponent(selectedAccount.email)}`, { method: "DELETE" });
-    ["services", "appointments", "blocked-times"].forEach((key) => {
-      window.localStorage.removeItem(getMasterStorageKey(selectedAccount.email, key));
-    });
     await refresh();
-    showToast("Мастер удален");
+    showToast("РњР°СЃС‚РµСЂ СѓРґР°Р»РµРЅ");
   };
 
   if (!isAuthorized) {
@@ -205,13 +206,13 @@ export default function AdminPage() {
             <Link href="/" className="text-sm font-semibold text-accent">
               Beauty Time
             </Link>
-            <h1 className="mt-5 text-4xl font-semibold tracking-tight md:text-5xl">Админ-панель</h1>
-            <p className="mt-4 max-w-xl text-lg text-muted">Управление мастерами, кабинетами, записями, услугами и публичными ссылками.</p>
+            <h1 className="mt-5 text-4xl font-semibold tracking-tight md:text-5xl">РђРґРјРёРЅ-РїР°РЅРµР»СЊ</h1>
+            <p className="mt-4 max-w-xl text-lg text-muted">РЈРїСЂР°РІР»РµРЅРёРµ РјР°СЃС‚РµСЂР°РјРё, РєР°Р±РёРЅРµС‚Р°РјРё, Р·Р°РїРёСЃСЏРјРё, СѓСЃР»СѓРіР°РјРё Рё РїСѓР±Р»РёС‡РЅС‹РјРё СЃСЃС‹Р»РєР°РјРё.</p>
           </div>
 
           <form onSubmit={login} className="saas-card space-y-4 p-6">
             <label className="space-y-2">
-              <span className="text-sm font-medium text-muted">Пароль администратора</span>
+              <span className="text-sm font-medium text-muted">РџР°СЂРѕР»СЊ Р°РґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂР°</span>
               <input
                 type="password"
                 value={password}
@@ -221,7 +222,7 @@ export default function AdminPage() {
               />
             </label>
             <button type="submit" className="w-full rounded-2xl bg-accent px-5 py-3 font-semibold text-white">
-              Войти
+              Р’РѕР№С‚Рё
             </button>
           </form>
         </section>
@@ -238,23 +239,23 @@ export default function AdminPage() {
             <Link href="/" className="text-sm font-semibold text-accent">
               Beauty Time
             </Link>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight md:text-4xl">Админ-панель</h1>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight md:text-4xl">РђРґРјРёРЅ-РїР°РЅРµР»СЊ</h1>
           </div>
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={refresh} className="rounded-xl border border-border bg-white px-4 py-2 font-semibold text-text">
-              Обновить
+              РћР±РЅРѕРІРёС‚СЊ
             </button>
             <button type="button" onClick={logoutAdmin} className="rounded-xl border border-border bg-white px-4 py-2 font-semibold text-text">
-              Выйти
+              Р’С‹Р№С‚Рё
             </button>
           </div>
         </header>
 
         <section className="grid gap-4 md:grid-cols-4">
-          <Metric label="Мастеров" value={accounts.length.toString()} />
-          <Metric label="Услуг" value={totals.services.toString()} />
-          <Metric label="Записей" value={totals.appointments.toString()} />
-          <Metric label="Выручка" value={`${totals.revenue.toLocaleString("ru-RU")} руб.`} />
+          <Metric label="РњР°СЃС‚РµСЂРѕРІ" value={accounts.length.toString()} />
+          <Metric label="РЈСЃР»СѓРі" value={totals.services.toString()} />
+          <Metric label="Р—Р°РїРёСЃРµР№" value={totals.appointments.toString()} />
+          <Metric label="Р’С‹СЂСѓС‡РєР°" value={`${totals.revenue.toLocaleString("ru-RU")} СЂСѓР±.`} />
         </section>
 
         <section className="grid gap-5 xl:grid-cols-[360px_1fr]">
@@ -263,16 +264,15 @@ export default function AdminPage() {
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               className="w-full rounded-xl border border-border px-4 py-3"
-              placeholder="Поиск по email, имени или ссылке"
+              placeholder="РџРѕРёСЃРє РїРѕ email, РёРјРµРЅРё РёР»Рё СЃСЃС‹Р»РєРµ"
             />
 
             <div className="space-y-2">
               {filteredAccounts.length === 0 ? (
-                <p className="rounded-xl bg-white p-4 text-muted">Мастеров пока нет.</p>
+                <p className="rounded-xl bg-white p-4 text-muted">РњР°СЃС‚РµСЂРѕРІ РїРѕРєР° РЅРµС‚.</p>
               ) : (
                 filteredAccounts.map((account) => {
                   const profile = getProfile(account);
-                  const appointmentsCount = getAppointments(account.email).length;
                   return (
                     <button
                       key={account.email}
@@ -284,7 +284,7 @@ export default function AdminPage() {
                     >
                       <p className="font-semibold">{profile.displayName || account.name}</p>
                       <p className="break-all text-sm text-muted">{account.email}</p>
-                      <p className="mt-1 text-sm text-accent">/m/{profile.slug} · {appointmentsCount} записей</p>
+                      <p className="mt-1 text-sm text-accent">/m/{profile.slug} В· {account.appointmentsCount} Р·Р°РїРёСЃРµР№</p>
                     </button>
                   );
                 })
@@ -302,17 +302,17 @@ export default function AdminPage() {
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <button type="button" onClick={enterMasterCabinet} className="rounded-xl bg-accent px-4 py-2 font-semibold text-white">
-                      Войти как мастер
+                      Р’РѕР№С‚Рё РєР°Рє РјР°СЃС‚РµСЂ
                     </button>
                     <button type="button" onClick={deleteMaster} className="rounded-xl border border-red-200 bg-white px-4 py-2 font-semibold text-red-700">
-                      Удалить
+                      РЈРґР°Р»РёС‚СЊ
                     </button>
                   </div>
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-3">
                   <label className="space-y-2">
-                    <span className="text-sm font-medium text-muted">Имя мастера</span>
+                    <span className="text-sm font-medium text-muted">РРјСЏ РјР°СЃС‚РµСЂР°</span>
                     <input
                       key={`name-${selectedAccount.email}`}
                       defaultValue={selectedProfile.displayName || selectedAccount.name}
@@ -321,7 +321,7 @@ export default function AdminPage() {
                     />
                   </label>
                   <label className="space-y-2">
-                    <span className="text-sm font-medium text-muted">Ссылка</span>
+                    <span className="text-sm font-medium text-muted">РЎСЃС‹Р»РєР°</span>
                     <input
                       key={`slug-${selectedAccount.email}`}
                       defaultValue={selectedProfile.slug}
@@ -329,10 +329,10 @@ export default function AdminPage() {
                       pattern="[a-z0-9-]+"
                       className="w-full rounded-xl border border-border px-4 py-3"
                     />
-                    <span className="block text-xs text-muted">Только латиница, цифры и дефис.</span>
+                    <span className="block text-xs text-muted">РўРѕР»СЊРєРѕ Р»Р°С‚РёРЅРёС†Р°, С†РёС„СЂС‹ Рё РґРµС„РёСЃ.</span>
                   </label>
                   <label className="space-y-2">
-                    <span className="text-sm font-medium text-muted">Новый пароль</span>
+                    <span className="text-sm font-medium text-muted">РќРѕРІС‹Р№ РїР°СЂРѕР»СЊ</span>
                     <input
                       key={`password-${selectedAccount.email}`}
                       defaultValue={selectedAccount.password}
@@ -350,7 +350,7 @@ export default function AdminPage() {
                       selectedProfile.showOnBookingPage ? "bg-accent text-white" : "border border-border bg-white text-text"
                     }`}
                   >
-                    {selectedProfile.showOnBookingPage ? "Имя видно клиентам" : "Имя скрыто"}
+                    {selectedProfile.showOnBookingPage ? "РРјСЏ РІРёРґРЅРѕ РєР»РёРµРЅС‚Р°Рј" : "РРјСЏ СЃРєСЂС‹С‚Рѕ"}
                   </button>
                   <Link href={`/m/${selectedProfile.slug}`} target="_blank" className="break-all text-sm font-semibold text-accent">
                     {typeof window === "undefined" ? `/m/${selectedProfile.slug}` : `${window.location.origin}/m/${selectedProfile.slug}`}
@@ -359,24 +359,24 @@ export default function AdminPage() {
               </article>
 
               <section className="grid gap-5 lg:grid-cols-2">
-                <DataList title="Услуги" empty="Услуг пока нет">
+                <DataList title="РЈСЃР»СѓРіРё" empty="РЈСЃР»СѓРі РїРѕРєР° РЅРµС‚">
                   {selectedServices.map((service) => (
                     <article key={service.id} className="rounded-xl border border-border bg-white p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <p className="text-lg font-semibold">{service.title}</p>
-                          <p className="text-sm text-muted">{service.category || "Без категории"}</p>
+                          <p className="text-sm text-muted">{service.category || "Р‘РµР· РєР°С‚РµРіРѕСЂРёРё"}</p>
                         </div>
                         <span className={`rounded-full px-3 py-1 text-xs font-semibold ${service.active ? "bg-accentSoft text-accent" : "bg-section text-muted"}`}>
-                          {service.active ? "Активна" : "Скрыта"}
+                          {service.active ? "РђРєС‚РёРІРЅР°" : "РЎРєСЂС‹С‚Р°"}
                         </span>
                       </div>
-                      <p className="mt-2 text-muted">{service.duration} мин · {service.price.toLocaleString("ru-RU")} руб.</p>
+                      <p className="mt-2 text-muted">{service.duration} РјРёРЅ В· {service.price.toLocaleString("ru-RU")} СЂСѓР±.</p>
                     </article>
                   ))}
                 </DataList>
 
-                <DataList title="Записи" empty="Записей пока нет">
+                <DataList title="Р—Р°РїРёСЃРё" empty="Р—Р°РїРёСЃРµР№ РїРѕРєР° РЅРµС‚">
                   {selectedAppointments
                     .slice()
                     .sort((a, b) => `${b.date} ${b.time}`.localeCompare(`${a.date} ${a.time}`))
@@ -384,9 +384,9 @@ export default function AdminPage() {
                       const service = selectedServices.find((item) => item.id === appointment.serviceId);
                       return (
                         <article key={appointment.id} className="rounded-xl border border-border bg-white p-4">
-                          <p className="text-lg font-semibold">{appointment.date} · {appointment.time}</p>
-                          <p className="text-muted">{appointment.client} · {appointment.phone}</p>
-                          <p className="mt-1 text-sm text-muted">{service?.title || "Услуга удалена"} · {appointment.status}</p>
+                          <p className="text-lg font-semibold">{appointment.date} В· {appointment.time}</p>
+                          <p className="text-muted">{appointment.client} В· {appointment.phone}</p>
+                          <p className="mt-1 text-sm text-muted">{service?.title || "РЈСЃР»СѓРіР° СѓРґР°Р»РµРЅР°"} В· {appointment.status}</p>
                         </article>
                       );
                     })}
@@ -394,7 +394,7 @@ export default function AdminPage() {
               </section>
             </section>
           ) : (
-            <article className="saas-card p-6 text-muted">Зарегистрируйте первого мастера, чтобы здесь появились данные.</article>
+            <article className="saas-card p-6 text-muted">Р—Р°СЂРµРіРёСЃС‚СЂРёСЂСѓР№С‚Рµ РїРµСЂРІРѕРіРѕ РјР°СЃС‚РµСЂР°, С‡С‚РѕР±С‹ Р·РґРµСЃСЊ РїРѕСЏРІРёР»РёСЃСЊ РґР°РЅРЅС‹Рµ.</article>
           )}
         </section>
       </div>
@@ -423,3 +423,5 @@ function DataList({ title, empty, children }: { title: string; empty: string; ch
     </article>
   );
 }
+
+

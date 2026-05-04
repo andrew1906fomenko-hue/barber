@@ -1,10 +1,10 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-type Section = "Главная" | "Услуги" | "График работы" | "Аналитика" | "Финансы" | "Настройки";
-type AppointmentStatus = "Активна" | "Подтверждена" | "Завершена";
+type Section = "Р“Р»Р°РІРЅР°СЏ" | "РЈСЃР»СѓРіРё" | "Р“СЂР°С„РёРє СЂР°Р±РѕС‚С‹" | "РђРЅР°Р»РёС‚РёРєР°" | "Р¤РёРЅР°РЅСЃС‹" | "РќР°СЃС‚СЂРѕР№РєРё";
+type AppointmentStatus = "РђРєС‚РёРІРЅР°" | "РџРѕРґС‚РІРµСЂР¶РґРµРЅР°" | "Р—Р°РІРµСЂС€РµРЅР°";
 
 type Service = {
   id: string;
@@ -42,15 +42,16 @@ type MasterProfile = {
 };
 
 type AuthSession = {
+  id: string;
   email: string;
   name: string;
   slug: string;
 };
 
-const nav: Section[] = ["Главная", "Услуги", "График работы", "Аналитика", "Финансы", "Настройки"];
-const weekDays = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+const nav: Section[] = ["Р“Р»Р°РІРЅР°СЏ", "РЈСЃР»СѓРіРё", "Р“СЂР°С„РёРє СЂР°Р±РѕС‚С‹", "РђРЅР°Р»РёС‚РёРєР°", "Р¤РёРЅР°РЅСЃС‹", "РќР°СЃС‚СЂРѕР№РєРё"];
+const weekDays = ["РџРЅ", "Р’С‚", "РЎСЂ", "Р§С‚", "РџС‚", "РЎР±", "Р’СЃ"];
 const timeSlots = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00"];
-const ruMonths = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
+const ruMonths = ["РЇРЅРІР°СЂСЊ", "Р¤РµРІСЂР°Р»СЊ", "РњР°СЂС‚", "РђРїСЂРµР»СЊ", "РњР°Р№", "РСЋРЅСЊ", "РСЋР»СЊ", "РђРІРіСѓСЃС‚", "РЎРµРЅС‚СЏР±СЂСЊ", "РћРєС‚СЏР±СЂСЊ", "РќРѕСЏР±СЂСЊ", "Р”РµРєР°Р±СЂСЊ"];
 
 const emptyService = {
   title: "",
@@ -80,8 +81,6 @@ const defaultMasterProfile: MasterProfile = {
   slug: "anna-nails",
   showOnBookingPage: true,
 };
-
-const getMasterStorageKey = (email: string, key: string) => `barber-master:${email}:${key}`;
 
 const normalizeEmailSlug = (email: string) =>
   email
@@ -169,7 +168,7 @@ const getSelectedWeekDays = (date: Date) => {
 export default function DashboardPage() {
   const router = useRouter();
   const today = useMemo(() => new Date(), []);
-  const [section, setSection] = useState<Section>("Главная");
+  const [section, setSection] = useState<Section>("Р“Р»Р°РІРЅР°СЏ");
   const [toast, setToast] = useState("");
   const [authSession, setAuthSession] = useState<AuthSession | null>(null);
   const [monthDate, setMonthDate] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
@@ -177,10 +176,9 @@ export default function DashboardPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [blockedTimes, setBlockedTimes] = useState<BlockedTime[]>([]);
-  const [storageReady, setStorageReady] = useState(false);
   const [calendarExpanded, setCalendarExpanded] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<"Все" | AppointmentStatus>("Все");
+  const [statusFilter, setStatusFilter] = useState<"Р’СЃРµ" | AppointmentStatus>("Р’СЃРµ");
   const [showAppointmentForm, setShowAppointmentForm] = useState(false);
   const [appointmentForm, setAppointmentForm] = useState(emptyAppointment);
   const [serviceForm, setServiceForm] = useState(emptyService);
@@ -193,96 +191,53 @@ export default function DashboardPage() {
   const bookingPath = `/m/${masterProfile.slug || "master"}`;
   const bookingUrl = typeof window === "undefined" ? bookingPath : `${window.location.origin}${bookingPath}`;
 
-  const loadStoredData = (session = authSession) => {
-    const email = session?.email;
-    if (!email) return;
-    const savedServices = window.localStorage.getItem(getMasterStorageKey(email, "services"));
-    const savedAppointments = window.localStorage.getItem(getMasterStorageKey(email, "appointments"));
-    const savedBlockedTimes = window.localStorage.getItem(getMasterStorageKey(email, "blocked-times"));
+  const loadServerData = async () => {
+    const [meResponse, servicesResponse, appointmentsResponse, blockedTimesResponse] = await Promise.all([
+      fetch("/api/me"),
+      fetch("/api/services"),
+      fetch("/api/appointments"),
+      fetch("/api/blocked_times"),
+    ]);
 
-    if (savedServices) {
-      setServices(JSON.parse(savedServices));
-    } else {
-      setServices([]);
+    const meData = (await meResponse.json()) as {
+      success: boolean;
+      user?: AuthSession;
+      master?: { name: string; slug: string; workStart: string; workEnd: string };
+    };
+
+    if (!meResponse.ok || !meData.success || !meData.user || !meData.master) {
+      router.replace("/register");
+      return;
     }
 
-    if (savedAppointments) {
-      setAppointments(JSON.parse(savedAppointments));
-    } else {
-      setAppointments([]);
-    }
+    const servicesData = (await servicesResponse.json()) as { success: boolean; services?: Service[] };
+    const appointmentsData = (await appointmentsResponse.json()) as { success: boolean; appointments?: Appointment[] };
+    const blockedTimesData = (await blockedTimesResponse.json()) as { success: boolean; blockedTimes?: BlockedTime[] };
 
-    if (savedBlockedTimes) {
-      setBlockedTimes(JSON.parse(savedBlockedTimes));
-    } else {
-      setBlockedTimes([]);
-    }
-
+    setAuthSession(meData.user);
+    setServices(servicesData.success ? servicesData.services || [] : []);
+    setAppointments(appointmentsData.success ? appointmentsData.appointments || [] : []);
+    setBlockedTimes(blockedTimesData.success ? blockedTimesData.blockedTimes || [] : []);
+    setWorkStart(meData.master.workStart || "10:00");
+    setWorkEnd(meData.master.workEnd || "20:00");
     setMasterProfile({
       ...defaultMasterProfile,
-      displayName: session.name,
-      slug: resolveLatinSlug(session.slug, normalizeEmailSlug(email)),
+      displayName: meData.master.name,
+      slug: resolveLatinSlug(meData.master.slug, normalizeEmailSlug(meData.user.email)),
     });
   };
 
   useEffect(() => {
-    let currentSession: AuthSession | null = null;
-
     const loadSession = async () => {
       try {
-        const response = await fetch("/api/me");
-        const data = (await response.json()) as {
-          success: boolean;
-          user?: AuthSession;
-        };
-
-        if (!response.ok || !data.success || !data.user) {
-          router.replace("/register");
-          return;
-        }
-
-        currentSession = data.user;
-        setAuthSession(data.user);
-        loadStoredData(data.user);
-        setStorageReady(true);
+        await loadServerData();
       } catch {
         router.replace("/register");
       }
     };
 
-    const refreshData = () => {
-      if (currentSession) {
-        loadStoredData(currentSession);
-      }
-    };
-
     void loadSession();
-
-    window.addEventListener("storage", refreshData);
-    window.addEventListener("focus", refreshData);
-    window.addEventListener("barber-appointments-updated", refreshData);
-
-    return () => {
-      window.removeEventListener("storage", refreshData);
-      window.removeEventListener("focus", refreshData);
-      window.removeEventListener("barber-appointments-updated", refreshData);
-    };
   }, [router]);
-
-  useEffect(() => {
-    if (!storageReady || !authSession) return;
-    window.localStorage.setItem(getMasterStorageKey(authSession.email, "services"), JSON.stringify(services));
-  }, [authSession, services, storageReady]);
-
-  useEffect(() => {
-    if (!storageReady || !authSession) return;
-    window.localStorage.setItem(getMasterStorageKey(authSession.email, "appointments"), JSON.stringify(appointments));
-  }, [appointments, authSession, storageReady]);
-
-  useEffect(() => {
-    if (!storageReady || !authSession) return;
-    window.localStorage.setItem(getMasterStorageKey(authSession.email, "blocked-times"), JSON.stringify(blockedTimes));
-  }, [authSession, blockedTimes, storageReady]);
 
   const selectedDateObject = useMemo(() => {
     const [year, month, day] = selectedDate.split("-").map(Number);
@@ -293,7 +248,7 @@ export default function DashboardPage() {
   const selectedWeekDays = useMemo(() => getSelectedWeekDays(selectedDateObject), [selectedDateObject]);
   const selectedAppointments = appointments
     .filter((item) => item.date === selectedDate)
-    .filter((item) => statusFilter === "Все" || item.status === statusFilter)
+    .filter((item) => statusFilter === "Р’СЃРµ" || item.status === statusFilter)
     .sort((a, b) => a.time.localeCompare(b.time));
   const selectedBlockedTimes = blockedTimes
     .filter((item) => item.date === selectedDate)
@@ -317,15 +272,28 @@ export default function DashboardPage() {
   const copyLink = async () => {
     try {
       await navigator.clipboard.writeText(bookingUrl);
-      showToast("Ссылка скопирована");
+      showToast("РЎСЃС‹Р»РєР° СЃРєРѕРїРёСЂРѕРІР°РЅР°");
     } catch {
-      showToast("Не удалось скопировать ссылку");
+      showToast("РќРµ СѓРґР°Р»РѕСЃСЊ СЃРєРѕРїРёСЂРѕРІР°С‚СЊ СЃСЃС‹Р»РєСѓ");
     }
   };
 
   const logout = async () => {
     await fetch("/api/logout", { method: "POST" });
     router.replace("/login");
+  };
+
+  const saveMasterProfile = async (profile: MasterProfile) => {
+    if (!authSession) return;
+    await fetch("/api/users", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: authSession.email,
+        name: profile.displayName || authSession.name,
+        slug: profile.slug,
+      }),
+    });
   };
 
   const selectToday = () => {
@@ -337,42 +305,46 @@ export default function DashboardPage() {
     setMonthDate((current) => new Date(current.getFullYear(), current.getMonth() + direction, 1));
   };
 
-  const addService = (event: React.FormEvent) => {
+  const addService = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!serviceForm.title.trim() || !serviceForm.price.trim()) {
-      showToast("Заполните название и цену услуги");
+      showToast("Р—Р°РїРѕР»РЅРёС‚Рµ РЅР°Р·РІР°РЅРёРµ Рё С†РµРЅСѓ СѓСЃР»СѓРіРё");
       return;
     }
 
-    setServices((current) => [
-      {
-        id: crypto.randomUUID(),
+    const response = await fetch("/api/services", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
         title: serviceForm.title.trim(),
-        category: serviceForm.category.trim() || "Основные услуги",
-        duration: Number(serviceForm.duration) || 60,
         price: Number(serviceForm.price) || 0,
+        duration: Number(serviceForm.duration) || 60,
         description: serviceForm.description.trim(),
-        preparation: serviceForm.preparation.trim(),
-        active: true,
-      },
-      ...current,
-    ]);
+      }),
+    });
+    const data = (await response.json()) as { success: boolean; service?: Service; error?: string };
+    if (!response.ok || !data.success || !data.service) {
+      showToast(data.error || "Не удалось сохранить услугу");
+      return;
+    }
+
+    setServices((current) => [data.service!, ...current]);
     setServiceForm(emptyService);
     setServiceFormOpen(false);
-    showToast("Услуга добавлена");
+    showToast("РЈСЃР»СѓРіР° РґРѕР±Р°РІР»РµРЅР°");
   };
 
-  const addAppointment = (event: React.FormEvent) => {
+  const addAppointment = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!appointmentForm.client.trim() || !appointmentForm.phone.trim()) {
-      showToast("Заполните имя и телефон клиента");
+      showToast("Р—Р°РїРѕР»РЅРёС‚Рµ РёРјСЏ Рё С‚РµР»РµС„РѕРЅ РєР»РёРµРЅС‚Р°");
       return;
     }
 
     const serviceId = appointmentForm.serviceId || services[0]?.id;
     if (!serviceId) {
-      showToast("Сначала добавьте услугу");
-      setSection("Услуги");
+      showToast("РЎРЅР°С‡Р°Р»Р° РґРѕР±Р°РІСЊС‚Рµ СѓСЃР»СѓРіСѓ");
+      setSection("РЈСЃР»СѓРіРё");
       return;
     }
 
@@ -385,7 +357,7 @@ export default function DashboardPage() {
         intervalsOverlap(appointmentStart, appointmentEnd, timeToMinutes(block.start), timeToMinutes(block.end)),
     );
     if (timeBlocked) {
-      showToast("Это время заблокировано мастером");
+      showToast("Р­С‚Рѕ РІСЂРµРјСЏ Р·Р°Р±Р»РѕРєРёСЂРѕРІР°РЅРѕ РјР°СЃС‚РµСЂРѕРј");
       return;
     }
 
@@ -397,29 +369,35 @@ export default function DashboardPage() {
       return intervalsOverlap(appointmentStart, appointmentEnd, itemStart, itemEnd);
     });
     if (appointmentOverlaps) {
-      showToast("Это время пересекается с другой записью");
+      showToast("Р­С‚Рѕ РІСЂРµРјСЏ РїРµСЂРµСЃРµРєР°РµС‚СЃСЏ СЃ РґСЂСѓРіРѕР№ Р·Р°РїРёСЃСЊСЋ");
       return;
     }
 
-    setAppointments((current) => [
-      ...current,
-      {
-        id: crypto.randomUUID(),
+    const response = await fetch("/api/appointments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
         date: selectedDate,
         time: appointmentForm.time,
         client: appointmentForm.client.trim(),
         phone: appointmentForm.phone.trim(),
         serviceId,
-        status: "Активна",
-      },
-    ]);
+      }),
+    });
+    const data = (await response.json()) as { success: boolean; appointment?: Appointment; error?: string };
+    if (!response.ok || !data.success || !data.appointment) {
+      showToast(data.error || "Не удалось создать запись");
+      return;
+    }
+
+    setAppointments((current) => [...current, data.appointment!]);
     setAppointmentForm(emptyAppointment);
     setShowAppointmentForm(false);
-    showToast("Запись добавлена");
+    showToast("Р—Р°РїРёСЃСЊ РґРѕР±Р°РІР»РµРЅР°");
   };
 
   const updateAppointmentStatus = (id: string) => {
-    const order: AppointmentStatus[] = ["Активна", "Подтверждена", "Завершена"];
+    const order: AppointmentStatus[] = ["РђРєС‚РёРІРЅР°", "РџРѕРґС‚РІРµСЂР¶РґРµРЅР°", "Р—Р°РІРµСЂС€РµРЅР°"];
     setAppointments((current) =>
       current.map((item) => {
         if (item.id !== id) return item;
@@ -429,25 +407,27 @@ export default function DashboardPage() {
     );
   };
 
-  const deleteAppointment = (id: string) => {
+  const deleteAppointment = async (id: string) => {
+    await fetch(`/api/appointments?id=${encodeURIComponent(id)}`, { method: "DELETE" });
     setAppointments((current) => current.filter((item) => item.id !== id));
-    showToast("Запись удалена");
+    showToast("Р—Р°РїРёСЃСЊ СѓРґР°Р»РµРЅР°");
   };
 
   const toggleService = (id: string) => {
     setServices((current) => current.map((item) => (item.id === id ? { ...item, active: !item.active } : item)));
   };
 
-  const deleteService = (id: string) => {
+  const deleteService = async (id: string) => {
+    await fetch(`/api/services?id=${encodeURIComponent(id)}`, { method: "DELETE" });
     setServices((current) => current.filter((item) => item.id !== id));
     setAppointments((current) => current.filter((item) => item.serviceId !== id));
-    showToast("Услуга удалена");
+    showToast("РЈСЃР»СѓРіР° СѓРґР°Р»РµРЅР°");
   };
 
-  const addBlockedTime = (event: React.FormEvent) => {
+  const addBlockedTime = async (event: React.FormEvent) => {
     event.preventDefault();
     if (blockForm.start >= blockForm.end) {
-      showToast("Время окончания должно быть позже начала");
+      showToast("Р’СЂРµРјСЏ РѕРєРѕРЅС‡Р°РЅРёСЏ РґРѕР»Р¶РЅРѕ Р±С‹С‚СЊ РїРѕР·Р¶Рµ РЅР°С‡Р°Р»Р°");
       return;
     }
 
@@ -461,7 +441,7 @@ export default function DashboardPage() {
       return intervalsOverlap(blockStart, blockEnd, appointmentStart, appointmentEnd);
     });
     if (blockOverlapsAppointment) {
-      showToast("Блокировка пересекается с существующей записью");
+      showToast("Р‘Р»РѕРєРёСЂРѕРІРєР° РїРµСЂРµСЃРµРєР°РµС‚СЃСЏ СЃ СЃСѓС‰РµСЃС‚РІСѓСЋС‰РµР№ Р·Р°РїРёСЃСЊСЋ");
       return;
     }
 
@@ -469,27 +449,35 @@ export default function DashboardPage() {
       (item) => item.date === blockForm.date && intervalsOverlap(blockStart, blockEnd, timeToMinutes(item.start), timeToMinutes(item.end)),
     );
     if (blockOverlapsBlock) {
-      showToast("Такая блокировка пересекается с другой");
+      showToast("РўР°РєР°СЏ Р±Р»РѕРєРёСЂРѕРІРєР° РїРµСЂРµСЃРµРєР°РµС‚СЃСЏ СЃ РґСЂСѓРіРѕР№");
       return;
     }
 
-    setBlockedTimes((current) => [
-      {
-        id: crypto.randomUUID(),
+    const response = await fetch("/api/blocked_times", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
         date: blockForm.date,
         start: blockForm.start,
         end: blockForm.end,
         reason: blockForm.reason.trim() || "Недоступно",
-      },
-      ...current,
-    ]);
+      }),
+    });
+    const data = (await response.json()) as { success: boolean; blockedTime?: BlockedTime; error?: string };
+    if (!response.ok || !data.success || !data.blockedTime) {
+      showToast(data.error || "Не удалось создать блокировку");
+      return;
+    }
+
+    setBlockedTimes((current) => [data.blockedTime!, ...current]);
     setBlockForm((current) => ({ ...emptyBlock, date: current.date }));
-    showToast("Время заблокировано");
+    showToast("Р’СЂРµРјСЏ Р·Р°Р±Р»РѕРєРёСЂРѕРІР°РЅРѕ");
   };
 
-  const deleteBlockedTime = (id: string) => {
+  const deleteBlockedTime = async (id: string) => {
+    await fetch(`/api/blocked_times?id=${encodeURIComponent(id)}`, { method: "DELETE" });
     setBlockedTimes((current) => current.filter((item) => item.id !== id));
-    showToast("Блокировка удалена");
+    showToast("Р‘Р»РѕРєРёСЂРѕРІРєР° СѓРґР°Р»РµРЅР°");
   };
 
   return (
@@ -516,12 +504,12 @@ export default function DashboardPage() {
             onClick={logout}
             className="mt-4 w-full rounded-xl border border-border bg-white px-3 py-3 text-left text-lg font-semibold text-text transition hover:bg-section"
           >
-            Выйти
+            Р’С‹Р№С‚Рё
           </button>
         </aside>
 
         <section className="space-y-5">
-          {section === "Главная" && (
+          {section === "Р“Р»Р°РІРЅР°СЏ" && (
             <HomeSection
               activeServices={activeServices.length}
               appointments={selectedAppointments}
@@ -554,7 +542,7 @@ export default function DashboardPage() {
             />
           )}
 
-          {section === "Услуги" && (
+          {section === "РЈСЃР»СѓРіРё" && (
             <ServicesSection
               addService={addService}
               deleteService={deleteService}
@@ -567,7 +555,7 @@ export default function DashboardPage() {
             />
           )}
 
-          {section === "График работы" && (
+          {section === "Р“СЂР°С„РёРє СЂР°Р±РѕС‚С‹" && (
             <ScheduleSection
               addBlockedTime={addBlockedTime}
               blockForm={blockForm}
@@ -583,21 +571,22 @@ export default function DashboardPage() {
             />
           )}
 
-          {section === "Аналитика" && (
+          {section === "РђРЅР°Р»РёС‚РёРєР°" && (
             <AnalyticsSection appointments={appointments} activeServices={activeServices.length} blockedTimes={blockedTimes} services={services} />
           )}
 
-          {section === "Финансы" && (
+          {section === "Р¤РёРЅР°РЅСЃС‹" && (
             <FinanceSection appointments={appointments} services={services} totalRevenue={totalRevenue} />
           )}
 
-          {section === "Настройки" && (
+          {section === "РќР°СЃС‚СЂРѕР№РєРё" && (
             <SettingsSection
               email={authSession?.email || ""}
               bookingUrl={bookingUrl}
               copyLink={copyLink}
               logout={logout}
               masterProfile={masterProfile}
+              saveMasterProfile={saveMasterProfile}
               setMasterProfile={setMasterProfile}
             />
           )}
@@ -617,7 +606,7 @@ export default function DashboardPage() {
             </button>
           ))}
           <button type="button" onClick={logout} className="rounded-xl px-2 py-2 text-xs font-semibold text-text">
-            Выйти
+            Р’С‹Р№С‚Рё
           </button>
         </div>
       </nav>
@@ -647,22 +636,22 @@ function HomeSection(props: {
   setShowAppointmentForm: React.Dispatch<React.SetStateAction<boolean>>;
   showAppointmentForm: boolean;
   showFilters: boolean;
-  statusFilter: "Все" | AppointmentStatus;
+  statusFilter: "Р’СЃРµ" | AppointmentStatus;
   timeSlots: string[];
   selectedDateRevenue: number;
   addAppointment: (event: React.FormEvent) => void;
   changeMonth: (direction: -1 | 1) => void;
   selectToday: () => void;
   setShowFilters: React.Dispatch<React.SetStateAction<boolean>>;
-  setStatusFilter: React.Dispatch<React.SetStateAction<"Все" | AppointmentStatus>>;
+  setStatusFilter: React.Dispatch<React.SetStateAction<"Р’СЃРµ" | AppointmentStatus>>;
   updateAppointmentStatus: (id: string) => void;
 }) {
   return (
     <>
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Привет{props.masterName.trim() ? `, ${props.masterName}` : ""}!</h1>
-          <p className="mt-2 text-lg text-muted">Вот что происходит в вашем салоне сегодня.</p>
+          <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">РџСЂРёРІРµС‚{props.masterName.trim() ? `, ${props.masterName}` : ""}!</h1>
+          <p className="mt-2 text-lg text-muted">Р’РѕС‚ С‡С‚Рѕ РїСЂРѕРёСЃС…РѕРґРёС‚ РІ РІР°С€РµРј СЃР°Р»РѕРЅРµ СЃРµРіРѕРґРЅСЏ.</p>
         </div>
       </header>
 
@@ -677,7 +666,7 @@ function HomeSection(props: {
             <p className="text-muted capitalize">{formatMonth(props.monthDate)}</p>
           </div>
           <div className="text-lg font-semibold text-accent">
-            {props.calendarExpanded ? "Свернуть календарь ▴" : "Развернуть календарь ▾"}
+            {props.calendarExpanded ? "РЎРІРµСЂРЅСѓС‚СЊ РєР°Р»РµРЅРґР°СЂСЊ в–ґ" : "Р Р°Р·РІРµСЂРЅСѓС‚СЊ РєР°Р»РµРЅРґР°СЂСЊ в–ѕ"}
           </div>
         </button>
 
@@ -707,13 +696,13 @@ function HomeSection(props: {
           <div className="overflow-hidden bg-section px-5 py-4">
             <div className="mb-4 flex flex-wrap justify-end gap-2">
             <button type="button" onClick={() => props.changeMonth(-1)} className="rounded-xl border border-border bg-white px-4 py-2 hover:bg-section">
-              Назад
+              РќР°Р·Р°Рґ
             </button>
             <button type="button" onClick={props.selectToday} className="rounded-xl border border-border bg-white px-4 py-2 hover:bg-section">
-              Сегодня
+              РЎРµРіРѕРґРЅСЏ
             </button>
             <button type="button" onClick={() => props.changeMonth(1)} className="rounded-xl border border-border bg-white px-4 py-2 hover:bg-section">
-              Вперёд
+              Р’РїРµСЂС‘Рґ
             </button>
             </div>
             <div className="grid grid-cols-7 gap-2 text-center text-sm text-muted">
@@ -746,8 +735,8 @@ function HomeSection(props: {
       <section className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-2xl font-semibold tracking-tight md:text-3xl">Записи на {props.formatSelectedDate}</h2>
-            <p className="mt-1 text-sm text-muted">Записей: {props.appointments.length}</p>
+            <h2 className="text-2xl font-semibold tracking-tight md:text-3xl">Р—Р°РїРёСЃРё РЅР° {props.formatSelectedDate}</h2>
+            <p className="mt-1 text-sm text-muted">Р—Р°РїРёСЃРµР№: {props.appointments.length}</p>
           </div>
           <div className="flex gap-3">
             <button
@@ -755,17 +744,17 @@ function HomeSection(props: {
               onClick={() => props.setShowFilters((value) => !value)}
               className="rounded-2xl border border-border bg-white px-4 py-2 text-muted hover:bg-section"
             >
-              Фильтры
+              Р¤РёР»СЊС‚СЂС‹
             </button>
             <button type="button" onClick={() => props.setShowAppointmentForm(true)} className="rounded-2xl bg-accent px-4 py-2 text-white hover:opacity-90">
-              Добавить запись
+              Р”РѕР±Р°РІРёС‚СЊ Р·Р°РїРёСЃСЊ
             </button>
           </div>
         </div>
 
         {props.showFilters && (
           <div className="saas-card flex flex-wrap gap-2 p-4">
-            {(["Все", "Активна", "Подтверждена", "Завершена"] as const).map((status) => (
+            {(["Р’СЃРµ", "РђРєС‚РёРІРЅР°", "РџРѕРґС‚РІРµСЂР¶РґРµРЅР°", "Р—Р°РІРµСЂС€РµРЅР°"] as const).map((status) => (
               <button
                 key={status}
                 type="button"
@@ -793,20 +782,20 @@ function HomeSection(props: {
               value={props.appointmentForm.client}
               onChange={(event) => props.setAppointmentForm((current) => ({ ...current, client: event.target.value }))}
               className="rounded-xl border border-border px-3 py-3"
-              placeholder="Имя клиента"
+              placeholder="РРјСЏ РєР»РёРµРЅС‚Р°"
             />
             <input
               value={props.appointmentForm.phone}
               onChange={(event) => props.setAppointmentForm((current) => ({ ...current, phone: event.target.value }))}
               className="rounded-xl border border-border px-3 py-3"
-              placeholder="Телефон"
+              placeholder="РўРµР»РµС„РѕРЅ"
             />
             <select
               value={props.appointmentForm.serviceId}
               onChange={(event) => props.setAppointmentForm((current) => ({ ...current, serviceId: event.target.value }))}
               className="rounded-xl border border-border px-3 py-3"
             >
-              <option value="">Выберите услугу</option>
+              <option value="">Р’С‹Р±РµСЂРёС‚Рµ СѓСЃР»СѓРіСѓ</option>
               {props.services.map((service) => (
                 <option key={service.id} value={service.id}>
                   {service.title}
@@ -815,10 +804,10 @@ function HomeSection(props: {
             </select>
             <div className="flex gap-2">
               <button type="submit" className="flex-1 rounded-xl bg-accent px-3 py-3 font-semibold text-white">
-                Сохранить
+                РЎРѕС…СЂР°РЅРёС‚СЊ
               </button>
               <button type="button" onClick={() => props.setShowAppointmentForm(false)} className="rounded-xl border border-border px-3 py-3">
-                Отмена
+                РћС‚РјРµРЅР°
               </button>
             </div>
           </form>
@@ -829,10 +818,10 @@ function HomeSection(props: {
             <article key={item.id} className="saas-card grid gap-3 border-accentSoft bg-accentSoft p-4 md:grid-cols-[120px_1fr] md:items-center">
               <div>
                 <p className="text-2xl font-semibold text-accent">{item.start}-{item.end}</p>
-                <p className="text-muted">закрыто</p>
+                <p className="text-muted">Р·Р°РєСЂС‹С‚Рѕ</p>
               </div>
               <div>
-                <p className="text-2xl font-medium">Время недоступно для записи</p>
+                <p className="text-2xl font-medium">Р’СЂРµРјСЏ РЅРµРґРѕСЃС‚СѓРїРЅРѕ РґР»СЏ Р·Р°РїРёСЃРё</p>
                 <p className="text-muted">{item.reason}</p>
               </div>
             </article>
@@ -840,8 +829,8 @@ function HomeSection(props: {
 
           {props.appointments.length === 0 ? (
             <article className="saas-card p-8 text-center">
-              <p className="text-2xl font-semibold">На выбранную дату записей нет</p>
-              <p className="mt-2 text-muted">Нажмите «Добавить запись», чтобы создать первую реальную запись.</p>
+              <p className="text-2xl font-semibold">РќР° РІС‹Р±СЂР°РЅРЅСѓСЋ РґР°С‚Сѓ Р·Р°РїРёСЃРµР№ РЅРµС‚</p>
+              <p className="mt-2 text-muted">РќР°Р¶РјРёС‚Рµ В«Р”РѕР±Р°РІРёС‚СЊ Р·Р°РїРёСЃСЊВ», С‡С‚РѕР±С‹ СЃРѕР·РґР°С‚СЊ РїРµСЂРІСѓСЋ СЂРµР°Р»СЊРЅСѓСЋ Р·Р°РїРёСЃСЊ.</p>
             </article>
           ) : (
             props.appointments.map((item) => {
@@ -857,15 +846,15 @@ function HomeSection(props: {
                     <p className="text-muted">{item.phone}</p>
                   </div>
                   <div>
-                    <p className="text-xl font-medium">{service?.title || "Услуга удалена"}</p>
-                    <p className="text-muted">{service ? `${service.duration} мин • ${service.price.toLocaleString("ru-RU")} ₽` : "нет деталей"}</p>
+                    <p className="text-xl font-medium">{service?.title || "РЈСЃР»СѓРіР° СѓРґР°Р»РµРЅР°"}</p>
+                    <p className="text-muted">{service ? `${service.duration} РјРёРЅ вЂў ${service.price.toLocaleString("ru-RU")} в‚Ѕ` : "РЅРµС‚ РґРµС‚Р°Р»РµР№"}</p>
                   </div>
                   <div className="flex gap-2">
                     <button type="button" onClick={() => props.updateAppointmentStatus(item.id)} className="rounded-xl border border-border px-3 py-2 hover:bg-section">
-                      Статус
+                      РЎС‚Р°С‚СѓСЃ
                     </button>
                     <button type="button" onClick={() => props.deleteAppointment(item.id)} className="rounded-xl border border-border px-3 py-2 text-muted hover:bg-section">
-                      Удалить
+                      РЈРґР°Р»РёС‚СЊ
                     </button>
                   </div>
                 </article>
@@ -892,15 +881,15 @@ function ServicesSection(props: {
     <div className="space-y-5">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Услуги</h1>
-          <p className="mt-2 text-lg text-muted">Добавляйте услуги со стоимостью, длительностью и описанием для клиентов.</p>
+          <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">РЈСЃР»СѓРіРё</h1>
+          <p className="mt-2 text-lg text-muted">Р”РѕР±Р°РІР»СЏР№С‚Рµ СѓСЃР»СѓРіРё СЃРѕ СЃС‚РѕРёРјРѕСЃС‚СЊСЋ, РґР»РёС‚РµР»СЊРЅРѕСЃС‚СЊСЋ Рё РѕРїРёСЃР°РЅРёРµРј РґР»СЏ РєР»РёРµРЅС‚РѕРІ.</p>
         </div>
         <button
           type="button"
           onClick={() => props.setServiceFormOpen((value) => !value)}
           className="rounded-2xl bg-accent px-5 py-3 font-semibold text-white hover:opacity-90"
         >
-          {props.serviceFormOpen ? "Свернуть" : "Добавить услугу"}
+          {props.serviceFormOpen ? "РЎРІРµСЂРЅСѓС‚СЊ" : "Р”РѕР±Р°РІРёС‚СЊ СѓСЃР»СѓРіСѓ"}
         </button>
       </header>
 
@@ -908,25 +897,25 @@ function ServicesSection(props: {
         <div className="overflow-hidden">
           <form onSubmit={props.addService} className="saas-card grid gap-4 p-5 lg:grid-cols-2">
             <label className="space-y-2">
-              <span className="text-sm font-medium text-muted">Название</span>
+              <span className="text-sm font-medium text-muted">РќР°Р·РІР°РЅРёРµ</span>
               <input
                 value={props.serviceForm.title}
                 onChange={(event) => props.setServiceForm((current) => ({ ...current, title: event.target.value }))}
                 className="w-full rounded-xl border border-border px-4 py-3"
-                placeholder="Например, мужская стрижка"
+                placeholder="РќР°РїСЂРёРјРµСЂ, РјСѓР¶СЃРєР°СЏ СЃС‚СЂРёР¶РєР°"
               />
             </label>
             <label className="space-y-2">
-              <span className="text-sm font-medium text-muted">Категория</span>
+              <span className="text-sm font-medium text-muted">РљР°С‚РµРіРѕСЂРёСЏ</span>
               <input
                 value={props.serviceForm.category}
                 onChange={(event) => props.setServiceForm((current) => ({ ...current, category: event.target.value }))}
                 className="w-full rounded-xl border border-border px-4 py-3"
-                placeholder="Стрижки, окрашивание, уход"
+                placeholder="РЎС‚СЂРёР¶РєРё, РѕРєСЂР°С€РёРІР°РЅРёРµ, СѓС…РѕРґ"
               />
             </label>
             <label className="space-y-2">
-              <span className="text-sm font-medium text-muted">Длительность, минут</span>
+              <span className="text-sm font-medium text-muted">Р”Р»РёС‚РµР»СЊРЅРѕСЃС‚СЊ, РјРёРЅСѓС‚</span>
               <input
                 type="number"
                 min="5"
@@ -937,7 +926,7 @@ function ServicesSection(props: {
               />
             </label>
             <label className="space-y-2">
-              <span className="text-sm font-medium text-muted">Цена, ₽</span>
+              <span className="text-sm font-medium text-muted">Р¦РµРЅР°, в‚Ѕ</span>
               <input
                 type="number"
                 min="0"
@@ -948,33 +937,33 @@ function ServicesSection(props: {
               />
             </label>
             <label className="space-y-2 lg:col-span-2">
-              <span className="text-sm font-medium text-muted">Описание</span>
+              <span className="text-sm font-medium text-muted">РћРїРёСЃР°РЅРёРµ</span>
               <textarea
                 value={props.serviceForm.description}
                 onChange={(event) => props.setServiceForm((current) => ({ ...current, description: event.target.value }))}
                 className="min-h-24 w-full rounded-xl border border-border px-4 py-3"
-                placeholder="Что входит в услугу, кому подходит, какой результат получит клиент"
+                placeholder="Р§С‚Рѕ РІС…РѕРґРёС‚ РІ СѓСЃР»СѓРіСѓ, РєРѕРјСѓ РїРѕРґС…РѕРґРёС‚, РєР°РєРѕР№ СЂРµР·СѓР»СЊС‚Р°С‚ РїРѕР»СѓС‡РёС‚ РєР»РёРµРЅС‚"
               />
             </label>
             <label className="space-y-2 lg:col-span-2">
-              <span className="text-sm font-medium text-muted">Подготовка клиента</span>
+              <span className="text-sm font-medium text-muted">РџРѕРґРіРѕС‚РѕРІРєР° РєР»РёРµРЅС‚Р°</span>
               <textarea
                 value={props.serviceForm.preparation}
                 onChange={(event) => props.setServiceForm((current) => ({ ...current, preparation: event.target.value }))}
                 className="min-h-20 w-full rounded-xl border border-border px-4 py-3"
-                placeholder="Что нужно знать клиенту до визита"
+                placeholder="Р§С‚Рѕ РЅСѓР¶РЅРѕ Р·РЅР°С‚СЊ РєР»РёРµРЅС‚Сѓ РґРѕ РІРёР·РёС‚Р°"
               />
             </label>
             <div className="flex flex-wrap gap-3 lg:col-span-2">
               <button type="submit" className="rounded-2xl bg-accent px-5 py-3 font-semibold text-white hover:opacity-90">
-                Сохранить услугу
+                РЎРѕС…СЂР°РЅРёС‚СЊ СѓСЃР»СѓРіСѓ
               </button>
               <button
                 type="button"
                 onClick={() => props.setServiceFormOpen(false)}
                 className="rounded-2xl border border-border bg-white px-5 py-3 font-semibold text-muted hover:bg-section"
               >
-                Отмена
+                РћС‚РјРµРЅР°
               </button>
             </div>
           </form>
@@ -984,8 +973,8 @@ function ServicesSection(props: {
       <div className="grid gap-4 lg:grid-cols-2">
         {props.services.length === 0 ? (
           <article className="saas-card p-8 text-center lg:col-span-2">
-            <p className="text-2xl font-semibold">Услуг пока нет</p>
-            <p className="mt-2 text-muted">Заполните форму ниже, чтобы добавить первую услугу.</p>
+            <p className="text-2xl font-semibold">РЈСЃР»СѓРі РїРѕРєР° РЅРµС‚</p>
+            <p className="mt-2 text-muted">Р—Р°РїРѕР»РЅРёС‚Рµ С„РѕСЂРјСѓ РЅРёР¶Рµ, С‡С‚РѕР±С‹ РґРѕР±Р°РІРёС‚СЊ РїРµСЂРІСѓСЋ СѓСЃР»СѓРіСѓ.</p>
           </article>
         ) : (
           props.services.map((service) => (
@@ -996,27 +985,27 @@ function ServicesSection(props: {
                   <h2 className="text-2xl font-semibold">{service.title}</h2>
                 </div>
                 <span className={`rounded-full px-3 py-1 text-sm ${service.active ? "bg-accentSoft text-accent" : "bg-section text-muted"}`}>
-                  {service.active ? "Активна" : "Скрыта"}
+                  {service.active ? "РђРєС‚РёРІРЅР°" : "РЎРєСЂС‹С‚Р°"}
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="rounded-xl bg-section p-3">
-                  <p className="text-sm text-muted">Длительность</p>
-                  <p className="text-xl font-semibold">{service.duration} мин</p>
+                  <p className="text-sm text-muted">Р”Р»РёС‚РµР»СЊРЅРѕСЃС‚СЊ</p>
+                  <p className="text-xl font-semibold">{service.duration} РјРёРЅ</p>
                 </div>
                 <div className="rounded-xl bg-section p-3">
-                  <p className="text-sm text-muted">Цена</p>
-                  <p className="text-xl font-semibold">{service.price.toLocaleString("ru-RU")} ₽</p>
+                  <p className="text-sm text-muted">Р¦РµРЅР°</p>
+                  <p className="text-xl font-semibold">{service.price.toLocaleString("ru-RU")} в‚Ѕ</p>
                 </div>
               </div>
               {service.description && <p className="text-muted">{service.description}</p>}
               {service.preparation && <p className="rounded-xl border border-border p-3 text-sm text-muted">{service.preparation}</p>}
               <div className="flex gap-2">
                 <button type="button" onClick={() => props.toggleService(service.id)} className="rounded-xl border border-border px-3 py-2 hover:bg-section">
-                  {service.active ? "Скрыть" : "Показать"}
+                  {service.active ? "РЎРєСЂС‹С‚СЊ" : "РџРѕРєР°Р·Р°С‚СЊ"}
                 </button>
                 <button type="button" onClick={() => props.deleteService(service.id)} className="rounded-xl border border-border px-3 py-2 text-muted hover:bg-section">
-                  Удалить
+                  РЈРґР°Р»РёС‚СЊ
                 </button>
               </div>
             </article>
@@ -1049,10 +1038,10 @@ function ScheduleSection(props: {
   return (
     <div className="space-y-5">
       <article className="saas-card max-w-4xl space-y-5 p-6">
-        <h1 className="text-3xl font-semibold">График работы</h1>
+        <h1 className="text-3xl font-semibold">Р“СЂР°С„РёРє СЂР°Р±РѕС‚С‹</h1>
         <div className="grid gap-4 md:grid-cols-2">
           <label className="space-y-2">
-            <span className="text-sm font-medium text-muted">Начало дня</span>
+            <span className="text-sm font-medium text-muted">РќР°С‡Р°Р»Рѕ РґРЅСЏ</span>
             <select value={props.workStart} onChange={(event) => props.setWorkStart(event.target.value)} className="w-full rounded-xl border border-border px-4 py-3">
               {timeSlots.map((time) => (
                 <option key={time} value={time}>
@@ -1062,7 +1051,7 @@ function ScheduleSection(props: {
             </select>
           </label>
           <label className="space-y-2">
-            <span className="text-sm font-medium text-muted">Конец дня</span>
+            <span className="text-sm font-medium text-muted">РљРѕРЅРµС† РґРЅСЏ</span>
             <select value={props.workEnd} onChange={(event) => props.setWorkEnd(event.target.value)} className="w-full rounded-xl border border-border px-4 py-3">
               {timeSlots.map((time) => (
                 <option key={time} value={time}>
@@ -1077,14 +1066,14 @@ function ScheduleSection(props: {
           onClick={() => props.setBookingEnabled((value) => !value)}
           className={`rounded-2xl px-5 py-3 font-semibold ${props.bookingEnabled ? "bg-accent text-white" : "border border-border bg-white text-text"}`}
         >
-          {props.bookingEnabled ? "Онлайн-запись включена" : "Онлайн-запись выключена"}
+          {props.bookingEnabled ? "РћРЅР»Р°Р№РЅ-Р·Р°РїРёСЃСЊ РІРєР»СЋС‡РµРЅР°" : "РћРЅР»Р°Р№РЅ-Р·Р°РїРёСЃСЊ РІС‹РєР»СЋС‡РµРЅР°"}
         </button>
       </article>
 
       <article className="saas-card max-w-4xl space-y-5 p-6">
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight md:text-3xl">Заблокировать время</h2>
-          <p className="mt-1 text-muted">Закройте день или несколько часов, если мастер не принимает клиентов.</p>
+          <h2 className="text-2xl font-semibold tracking-tight md:text-3xl">Р—Р°Р±Р»РѕРєРёСЂРѕРІР°С‚СЊ РІСЂРµРјСЏ</h2>
+          <p className="mt-1 text-muted">Р—Р°РєСЂРѕР№С‚Рµ РґРµРЅСЊ РёР»Рё РЅРµСЃРєРѕР»СЊРєРѕ С‡Р°СЃРѕРІ, РµСЃР»Рё РјР°СЃС‚РµСЂ РЅРµ РїСЂРёРЅРёРјР°РµС‚ РєР»РёРµРЅС‚РѕРІ.</p>
         </div>
 
         <form onSubmit={props.addBlockedTime} className="grid gap-3 lg:grid-cols-[0.8fr_1.2fr_0.9fr_1fr_1fr_2fr_auto]">
@@ -1164,26 +1153,26 @@ function ScheduleSection(props: {
             value={props.blockForm.reason}
             onChange={(event) => props.setBlockForm((current) => ({ ...current, reason: event.target.value }))}
             className="rounded-xl border border-border px-4 py-3"
-            placeholder="Причина: дела, отпуск, больничный"
+            placeholder="РџСЂРёС‡РёРЅР°: РґРµР»Р°, РѕС‚РїСѓСЃРє, Р±РѕР»СЊРЅРёС‡РЅС‹Р№"
           />
           <button type="submit" className="rounded-xl bg-accent px-4 py-3 font-semibold text-white">
-            Заблокировать
+            Р—Р°Р±Р»РѕРєРёСЂРѕРІР°С‚СЊ
           </button>
         </form>
       </article>
 
       <section className="grid max-w-4xl gap-3">
         {props.blockedTimes.length === 0 ? (
-          <article className="saas-card p-6 text-muted">Заблокированного времени пока нет.</article>
+          <article className="saas-card p-6 text-muted">Р—Р°Р±Р»РѕРєРёСЂРѕРІР°РЅРЅРѕРіРѕ РІСЂРµРјРµРЅРё РїРѕРєР° РЅРµС‚.</article>
         ) : (
           props.blockedTimes.map((item) => (
             <article key={item.id} className="saas-card flex flex-wrap items-center justify-between gap-4 p-4">
               <div>
-                <p className="text-2xl font-semibold">{item.date} · {item.start}-{item.end}</p>
+                <p className="text-2xl font-semibold">{item.date} В· {item.start}-{item.end}</p>
                 <p className="text-muted">{item.reason}</p>
               </div>
               <button type="button" onClick={() => props.deleteBlockedTime(item.id)} className="rounded-xl border border-border px-3 py-2 text-muted hover:bg-section">
-                Удалить
+                РЈРґР°Р»РёС‚СЊ
               </button>
             </article>
           ))
@@ -1204,9 +1193,9 @@ function AnalyticsSection({
   blockedTimes: BlockedTime[];
   services: Service[];
 }) {
-  const completed = appointments.filter((item) => item.status === "Завершена").length;
-  const confirmed = appointments.filter((item) => item.status === "Подтверждена").length;
-  const active = appointments.filter((item) => item.status === "Активна").length;
+  const completed = appointments.filter((item) => item.status === "Р—Р°РІРµСЂС€РµРЅР°").length;
+  const confirmed = appointments.filter((item) => item.status === "РџРѕРґС‚РІРµСЂР¶РґРµРЅР°").length;
+  const active = appointments.filter((item) => item.status === "РђРєС‚РёРІРЅР°").length;
   const maxStatus = Math.max(active, confirmed, completed, 1);
   const serviceStats = services
     .map((service) => ({
@@ -1220,25 +1209,25 @@ function AnalyticsSection({
   return (
     <div className="space-y-5">
       <header>
-        <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Аналитика</h1>
-        <p className="mt-2 text-lg text-muted">Динамика записей, статусы и популярность услуг.</p>
+        <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">РђРЅР°Р»РёС‚РёРєР°</h1>
+        <p className="mt-2 text-lg text-muted">Р”РёРЅР°РјРёРєР° Р·Р°РїРёСЃРµР№, СЃС‚Р°С‚СѓСЃС‹ Рё РїРѕРїСѓР»СЏСЂРЅРѕСЃС‚СЊ СѓСЃР»СѓРі.</p>
       </header>
 
       <section className="grid gap-4 xl:grid-cols-4">
-        <MetricCard label="Всего записей" value={appointments.length.toString()} />
-        <MetricCard label="Подтверждено" value={confirmed.toString()} />
-        <MetricCard label="Активных услуг" value={activeServices.toString()} />
-        <MetricCard label="Блокировок времени" value={blockedTimes.length.toString()} />
+        <MetricCard label="Р’СЃРµРіРѕ Р·Р°РїРёСЃРµР№" value={appointments.length.toString()} />
+        <MetricCard label="РџРѕРґС‚РІРµСЂР¶РґРµРЅРѕ" value={confirmed.toString()} />
+        <MetricCard label="РђРєС‚РёРІРЅС‹С… СѓСЃР»СѓРі" value={activeServices.toString()} />
+        <MetricCard label="Р‘Р»РѕРєРёСЂРѕРІРѕРє РІСЂРµРјРµРЅРё" value={blockedTimes.length.toString()} />
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
         <article className="saas-card p-6">
-          <h2 className="text-2xl font-semibold">Статусы записей</h2>
+          <h2 className="text-2xl font-semibold">РЎС‚Р°С‚СѓСЃС‹ Р·Р°РїРёСЃРµР№</h2>
           <div className="mt-6 space-y-4">
             {[
-              ["Активна", active],
-              ["Подтверждена", confirmed],
-              ["Завершена", completed],
+              ["РђРєС‚РёРІРЅР°", active],
+              ["РџРѕРґС‚РІРµСЂР¶РґРµРЅР°", confirmed],
+              ["Р—Р°РІРµСЂС€РµРЅР°", completed],
             ].map(([label, value]) => (
               <div key={label}>
                 <div className="mb-2 flex justify-between text-sm text-muted">
@@ -1254,10 +1243,10 @@ function AnalyticsSection({
         </article>
 
         <article className="saas-card p-6">
-          <h2 className="text-2xl font-semibold">Популярные услуги</h2>
+          <h2 className="text-2xl font-semibold">РџРѕРїСѓР»СЏСЂРЅС‹Рµ СѓСЃР»СѓРіРё</h2>
           <div className="mt-6 space-y-4">
             {serviceStats.length === 0 ? (
-              <p className="text-muted">Данных пока нет.</p>
+              <p className="text-muted">Р”Р°РЅРЅС‹С… РїРѕРєР° РЅРµС‚.</p>
             ) : (
               serviceStats.map((item) => (
                 <div key={item.title}>
@@ -1295,28 +1284,28 @@ function FinanceSection({ appointments, services, totalRevenue }: { appointments
   return (
     <div className="space-y-5">
       <header>
-        <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Финансы</h1>
-        <p className="mt-2 text-lg text-muted">Выручка, средний чек и вклад услуг.</p>
+        <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Р¤РёРЅР°РЅСЃС‹</h1>
+        <p className="mt-2 text-lg text-muted">Р’С‹СЂСѓС‡РєР°, СЃСЂРµРґРЅРёР№ С‡РµРє Рё РІРєР»Р°Рґ СѓСЃР»СѓРі.</p>
       </header>
 
       <section className="grid gap-4 xl:grid-cols-3">
-        <MetricCard label="Выручка" value={`${totalRevenue.toLocaleString("ru-RU")} ₽`} />
-        <MetricCard label="Средний чек" value={`${averageCheck.toLocaleString("ru-RU")} ₽`} />
-        <MetricCard label="Прогноз" value={`${projectedRevenue.toLocaleString("ru-RU")} ₽`} />
+        <MetricCard label="Р’С‹СЂСѓС‡РєР°" value={`${totalRevenue.toLocaleString("ru-RU")} в‚Ѕ`} />
+        <MetricCard label="РЎСЂРµРґРЅРёР№ С‡РµРє" value={`${averageCheck.toLocaleString("ru-RU")} в‚Ѕ`} />
+        <MetricCard label="РџСЂРѕРіРЅРѕР·" value={`${projectedRevenue.toLocaleString("ru-RU")} в‚Ѕ`} />
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[1fr_1fr]">
         <article className="saas-card p-6">
-          <h2 className="text-2xl font-semibold">Выручка по услугам</h2>
+          <h2 className="text-2xl font-semibold">Р’С‹СЂСѓС‡РєР° РїРѕ СѓСЃР»СѓРіР°Рј</h2>
           <div className="mt-6 space-y-4">
             {revenueByService.length === 0 ? (
-              <p className="text-muted">Пока нет оплачиваемых записей.</p>
+              <p className="text-muted">РџРѕРєР° РЅРµС‚ РѕРїР»Р°С‡РёРІР°РµРјС‹С… Р·Р°РїРёСЃРµР№.</p>
             ) : (
               revenueByService.map((item) => (
                 <div key={item.title}>
                   <div className="mb-2 flex justify-between text-sm text-muted">
                     <span>{item.title}</span>
-                    <span>{item.revenue.toLocaleString("ru-RU")} ₽</span>
+                    <span>{item.revenue.toLocaleString("ru-RU")} в‚Ѕ</span>
                   </div>
                   <div className="h-3 overflow-hidden rounded-full bg-section">
                     <div className="h-full rounded-full bg-accent" style={{ width: `${(item.revenue / maxRevenue) * 100}%` }} />
@@ -1328,7 +1317,7 @@ function FinanceSection({ appointments, services, totalRevenue }: { appointments
         </article>
 
         <article className="saas-card p-6">
-          <h2 className="text-2xl font-semibold">Финансовая картина</h2>
+          <h2 className="text-2xl font-semibold">Р¤РёРЅР°РЅСЃРѕРІР°СЏ РєР°СЂС‚РёРЅР°</h2>
           <div className="mt-6 flex h-56 items-end gap-3 rounded-2xl bg-section p-4">
             {[35, 58, 44, 72, 64, 86, Math.min(100, totalRevenue ? 92 : 24)].map((height, index) => (
               <div key={index} className="flex flex-1 items-end">
@@ -1336,7 +1325,7 @@ function FinanceSection({ appointments, services, totalRevenue }: { appointments
               </div>
             ))}
           </div>
-          <p className="mt-4 text-sm text-muted">Мини-график показывает условную динамику и станет точнее после подключения серверной аналитики.</p>
+          <p className="mt-4 text-sm text-muted">РњРёРЅРё-РіСЂР°С„РёРє РїРѕРєР°Р·С‹РІР°РµС‚ СѓСЃР»РѕРІРЅСѓСЋ РґРёРЅР°РјРёРєСѓ Рё СЃС‚Р°РЅРµС‚ С‚РѕС‡РЅРµРµ РїРѕСЃР»Рµ РїРѕРґРєР»СЋС‡РµРЅРёСЏ СЃРµСЂРІРµСЂРЅРѕР№ Р°РЅР°Р»РёС‚РёРєРё.</p>
         </article>
       </section>
     </div>
@@ -1358,10 +1347,11 @@ function SettingsSection(props: {
   copyLink: () => void;
   logout: () => void;
   masterProfile: MasterProfile;
+  saveMasterProfile: (profile: MasterProfile) => Promise<void>;
   setMasterProfile: React.Dispatch<React.SetStateAction<MasterProfile>>;
 }) {
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=12&data=${encodeURIComponent(props.bookingUrl)}`;
-  const masterLabel = props.masterProfile.displayName.trim() || props.masterProfile.slug || "Мастер";
+  const masterLabel = props.masterProfile.displayName.trim() || props.masterProfile.slug || "РњР°СЃС‚РµСЂ";
   const updateSlug = (value: string) => {
     const slug = normalizeSlug(value);
     if (!slug) {
@@ -1372,32 +1362,37 @@ function SettingsSection(props: {
     props.setMasterProfile((current) => ({ ...current, slug }));
   };
   const fillEmptySlug = () => {
-    props.setMasterProfile((current) => ({
-      ...current,
-      slug: current.slug || normalizeEmailSlug(props.email),
-    }));
+    props.setMasterProfile((current) => {
+      const next = {
+        ...current,
+        slug: current.slug || normalizeEmailSlug(props.email),
+      };
+      void props.saveMasterProfile(next);
+      return next;
+    });
   };
 
   return (
     <div className="space-y-5">
       <article className="saas-card max-w-4xl space-y-5 p-6">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Настройки мастера</h1>
-          <p className="mt-2 text-muted">Личный кабинет: {props.email}</p>
+          <h1 className="text-3xl font-semibold tracking-tight">РќР°СЃС‚СЂРѕР№РєРё РјР°СЃС‚РµСЂР°</h1>
+          <p className="mt-2 text-muted">Р›РёС‡РЅС‹Р№ РєР°Р±РёРЅРµС‚: {props.email}</p>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
           <label className="space-y-2">
-            <span className="text-sm font-medium text-muted">Имя или ник мастера</span>
+            <span className="text-sm font-medium text-muted">РРјСЏ РёР»Рё РЅРёРє РјР°СЃС‚РµСЂР°</span>
             <input
               value={props.masterProfile.displayName}
               onChange={(event) => props.setMasterProfile((current) => ({ ...current, displayName: event.target.value }))}
+              onBlur={() => void props.saveMasterProfile(props.masterProfile)}
               className="w-full rounded-xl border border-border px-4 py-3"
-              placeholder="Например, Анна Смирнова"
+              placeholder="РќР°РїСЂРёРјРµСЂ, РђРЅРЅР° РЎРјРёСЂРЅРѕРІР°"
             />
           </label>
           <label className="space-y-2">
-            <span className="text-sm font-medium text-muted">Ник для ссылки</span>
+            <span className="text-sm font-medium text-muted">РќРёРє РґР»СЏ СЃСЃС‹Р»РєРё</span>
             <input
               value={props.masterProfile.slug}
               onChange={(event) => updateSlug(event.target.value)}
@@ -1406,7 +1401,7 @@ function SettingsSection(props: {
               className="w-full rounded-xl border border-border px-4 py-3"
               placeholder="anna-smirnova"
             />
-            <span className="block text-xs text-muted">Только латинские буквы, цифры и дефис.</span>
+            <span className="block text-xs text-muted">РўРѕР»СЊРєРѕ Р»Р°С‚РёРЅСЃРєРёРµ Р±СѓРєРІС‹, С†РёС„СЂС‹ Рё РґРµС„РёСЃ.</span>
           </label>
         </div>
 
@@ -1417,11 +1412,11 @@ function SettingsSection(props: {
             props.masterProfile.showOnBookingPage ? "bg-accent text-white" : "border border-border bg-white text-text"
           }`}
         >
-          {props.masterProfile.showOnBookingPage ? "Имя отображается на странице записи" : "Имя скрыто на странице записи"}
+          {props.masterProfile.showOnBookingPage ? "РРјСЏ РѕС‚РѕР±СЂР°Р¶Р°РµС‚СЃСЏ РЅР° СЃС‚СЂР°РЅРёС†Рµ Р·Р°РїРёСЃРё" : "РРјСЏ СЃРєСЂС‹С‚Рѕ РЅР° СЃС‚СЂР°РЅРёС†Рµ Р·Р°РїРёСЃРё"}
         </button>
 
         <button type="button" onClick={props.logout} className="rounded-2xl border border-border bg-white px-5 py-3 font-semibold text-text">
-          Выйти из кабинета
+          Р’С‹Р№С‚Рё РёР· РєР°Р±РёРЅРµС‚Р°
         </button>
       </article>
 
@@ -1429,12 +1424,12 @@ function SettingsSection(props: {
         <div className="grid gap-5 md:grid-cols-[1fr_auto] md:items-start">
           <div className="space-y-3">
             <div>
-              <h2 className="text-2xl font-semibold">Ссылка для записи</h2>
-              <p className="mt-1 text-muted">QR-код создается отдельно для каждого мастера по его личной ссылке.</p>
+              <h2 className="text-2xl font-semibold">РЎСЃС‹Р»РєР° РґР»СЏ Р·Р°РїРёСЃРё</h2>
+              <p className="mt-1 text-muted">QR-РєРѕРґ СЃРѕР·РґР°РµС‚СЃСЏ РѕС‚РґРµР»СЊРЅРѕ РґР»СЏ РєР°Р¶РґРѕРіРѕ РјР°СЃС‚РµСЂР° РїРѕ РµРіРѕ Р»РёС‡РЅРѕР№ СЃСЃС‹Р»РєРµ.</p>
             </div>
             <p className="break-all text-accent">{props.bookingUrl}</p>
             <button type="button" onClick={props.copyLink} className="rounded-xl bg-accent px-4 py-2 font-semibold text-white">
-              Скопировать ссылку
+              РЎРєРѕРїРёСЂРѕРІР°С‚СЊ СЃСЃС‹Р»РєСѓ
             </button>
           </div>
 
@@ -1442,7 +1437,7 @@ function SettingsSection(props: {
             <div className="mx-auto flex h-[244px] w-[244px] items-center justify-center rounded-xl bg-white">
               <img
                 src={qrCodeUrl}
-                alt={`QR-код для записи к мастеру ${masterLabel}`}
+                alt={`QR-РєРѕРґ РґР»СЏ Р·Р°РїРёСЃРё Рє РјР°СЃС‚РµСЂСѓ ${masterLabel}`}
                 className="h-[240px] w-[240px]"
               />
             </div>
@@ -1452,7 +1447,7 @@ function SettingsSection(props: {
               download={`qr-${props.masterProfile.slug || "master"}.png`}
               className="mt-3 block rounded-xl border border-border px-4 py-2 text-center font-semibold text-text hover:bg-section"
             >
-              Скачать QR-код
+              РЎРєР°С‡Р°С‚СЊ QR-РєРѕРґ
             </a>
           </div>
         </div>
@@ -1479,3 +1474,8 @@ function StatCard({ title, value, extra }: { title: string; value: string; extra
     </article>
   );
 }
+
+
+
+
+

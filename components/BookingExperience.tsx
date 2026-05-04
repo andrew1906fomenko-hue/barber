@@ -4,22 +4,21 @@ import { useEffect, useMemo, useState } from "react";
 
 type Service = { id: string; title: string; duration: string; durationMinutes: number; price: string };
 
-type SavedService = {
+type ApiService = {
   id: string;
   title: string;
-  duration: number;
+  duration?: number;
+  durationMinutes?: number;
   price: number;
-  active: boolean;
 };
 
 type SavedAppointment = {
   id: string;
   date: string;
   time: string;
-  client: string;
-  phone: string;
+  start?: string;
+  end?: string;
   serviceId: string;
-  status: "Активна";
 };
 
 type BlockedTime = {
@@ -31,15 +30,9 @@ type BlockedTime = {
 };
 
 type MasterProfile = {
-  displayName: string;
-  slug: string;
-  showOnBookingPage: boolean;
-};
-
-type MasterAccount = {
-  email: string;
   name: string;
   slug: string;
+  showPrice?: boolean;
 };
 
 const fallbackServices: Service[] = [
@@ -68,7 +61,16 @@ const timeToMinutes = (value: string) => {
 const intervalsOverlap = (startA: number, endA: number, startB: number, endB: number) =>
   startA < endB && startB < endA;
 
-const getMasterStorageKey = (email: string, key: string) => `barber-master:${email}:${key}`;
+const mapService = (service: ApiService, showPrice = true): Service => {
+  const duration = service.durationMinutes ?? service.duration ?? 60;
+  return {
+    id: service.id,
+    title: service.title,
+    duration: `${duration} мин`,
+    durationMinutes: duration,
+    price: showPrice ? `${Number(service.price || 0).toLocaleString("ru-RU")} руб.` : "Цена по запросу",
+  };
+};
 
 export default function BookingExperience({
   masterSlug,
@@ -87,7 +89,7 @@ export default function BookingExperience({
   }, []);
 
   const [serviceId, setServiceId] = useState(fallbackServices[0].id);
-  const [services, setServices] = useState<Service[]>(fallbackServices);
+  const [services, setServices] = useState<Service[]>(masterSlug ? [] : fallbackServices);
   const [appointments, setAppointments] = useState<SavedAppointment[]>([]);
   const [blockedTimes, setBlockedTimes] = useState<BlockedTime[]>([]);
   const [masterProfile, setMasterProfile] = useState<MasterProfile | null>(null);
@@ -96,31 +98,22 @@ export default function BookingExperience({
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [submitted, setSubmitted] = useState(false);
-  const [appointmentsStorageKey, setAppointmentsStorageKey] = useState("barber-appointments");
 
   useEffect(() => {
     const loadMaster = async () => {
-      let account: MasterAccount | null = null;
+      if (!masterSlug) return;
 
-      if (masterSlug) {
-        try {
-          const response = await fetch(`/api/masters/${encodeURIComponent(masterSlug)}`);
-          const data = (await response.json()) as {
-            success: boolean;
-            master?: MasterAccount;
-          };
+      try {
+        const response = await fetch(`/api/masters/${encodeURIComponent(masterSlug)}`);
+        const data = (await response.json()) as {
+          success: boolean;
+          master?: MasterProfile;
+          services?: ApiService[];
+          appointments?: SavedAppointment[];
+          blockedTimes?: BlockedTime[];
+        };
 
-          if (!response.ok || !data.success || !data.master) {
-            setServices([]);
-            setServiceId("");
-            setAppointments([]);
-            setBlockedTimes([]);
-            setMasterProfile(null);
-            return;
-          }
-
-          account = data.master;
-        } catch {
+        if (!response.ok || !data.success || !data.master) {
           setServices([]);
           setServiceId("");
           setAppointments([]);
@@ -128,69 +121,20 @@ export default function BookingExperience({
           setMasterProfile(null);
           return;
         }
-      }
 
-    if (masterSlug && !account) {
-      setServices([]);
-      setServiceId("");
-      setAppointments([]);
-      setBlockedTimes([]);
-      setMasterProfile(null);
-      return;
-    }
-
-    const storageKey = (key: string) => (account ? getMasterStorageKey(account.email, key) : `barber-${key}`);
-    const appointmentKey = storageKey("appointments");
-    const savedServices = window.localStorage.getItem(storageKey("services"));
-    const savedAppointments = window.localStorage.getItem(appointmentKey);
-    const savedBlockedTimes = window.localStorage.getItem(storageKey("blocked-times"));
-
-    setAppointmentsStorageKey(appointmentKey);
-
-    if (savedAppointments) {
-      setAppointments(JSON.parse(savedAppointments));
-    } else {
-      setAppointments([]);
-    }
-
-    if (savedBlockedTimes) {
-      setBlockedTimes(JSON.parse(savedBlockedTimes));
-    } else {
-      setBlockedTimes([]);
-    }
-
-    if (account) {
-      setMasterProfile({ displayName: account.name, slug: account.slug, showOnBookingPage: true });
-    } else {
-      setMasterProfile(null);
-    }
-
-    if (!savedServices) {
-      if (masterSlug) {
+        const nextServices = (data.services || []).map((service) => mapService(service, data.master?.showPrice !== false));
+        setServices(nextServices);
+        setServiceId(nextServices[0]?.id || "");
+        setAppointments(data.appointments || []);
+        setBlockedTimes(data.blockedTimes || []);
+        setMasterProfile(data.master);
+      } catch {
         setServices([]);
         setServiceId("");
+        setAppointments([]);
+        setBlockedTimes([]);
+        setMasterProfile(null);
       }
-      return;
-    }
-
-    const activeServices = (JSON.parse(savedServices) as SavedService[])
-      .filter((service) => service.active !== false)
-      .map((service) => ({
-        id: service.id,
-        title: service.title,
-        duration: `${service.duration} мин`,
-        durationMinutes: service.duration,
-        price: `${service.price.toLocaleString("ru-RU")} руб.`,
-      }));
-
-    if (activeServices.length === 0) {
-      setServices([]);
-      setServiceId("");
-      return;
-    }
-
-      setServices(activeServices);
-      setServiceId(activeServices[0].id);
     };
 
     void loadMaster();
@@ -209,8 +153,8 @@ export default function BookingExperience({
           const overlapsAppointment = appointments.some((item) => {
             if (item.date !== day) return false;
             const service = services.find((entry) => entry.id === item.serviceId);
-            const itemStart = timeToMinutes(item.time);
-            const itemEnd = itemStart + (service?.durationMinutes || 60);
+            const itemStart = timeToMinutes(item.start || item.time);
+            const itemEnd = item.end ? timeToMinutes(item.end) : itemStart + (service?.durationMinutes || 60);
             return intervalsOverlap(slotStart, slotEnd, itemStart, itemEnd);
           });
           const overlapsBlock = blockedTimes.some(
@@ -228,26 +172,26 @@ export default function BookingExperience({
     setTime(nextAvailableTime || "");
   }, [time, unavailableTimes]);
 
-  const onSubmit = (event: React.FormEvent) => {
+  const onSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!selectedService || !time || !name.trim() || !phone.trim() || unavailableTimes.has(time)) return;
 
-    const savedAppointments = window.localStorage.getItem(appointmentsStorageKey);
-    const currentAppointments = savedAppointments ? (JSON.parse(savedAppointments) as SavedAppointment[]) : [];
-    const appointment: SavedAppointment = {
-      id: crypto.randomUUID(),
-      date: day,
-      time,
-      client: name.trim(),
-      phone: phone.trim(),
-      serviceId: selectedService.id,
-      status: "Активна",
-    };
+    const response = await fetch("/api/appointments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        masterSlug,
+        date: day,
+        time,
+        client: name.trim(),
+        phone: phone.trim(),
+        serviceId: selectedService.id,
+      }),
+    });
+    const data = (await response.json()) as { success: boolean; appointment?: SavedAppointment };
+    if (!response.ok || !data.success || !data.appointment) return;
 
-    const nextAppointments = [...currentAppointments, appointment];
-    window.localStorage.setItem(appointmentsStorageKey, JSON.stringify(nextAppointments));
-    setAppointments(nextAppointments);
-    window.dispatchEvent(new Event("barber-appointments-updated"));
+    setAppointments((current) => [...current, data.appointment!]);
     setSubmitted(true);
   };
 
@@ -255,9 +199,7 @@ export default function BookingExperience({
     <main className="mx-auto min-h-screen max-w-4xl bg-softBg px-4 py-8 text-text md:px-6">
       <section className="saas-card space-y-5 p-5 md:p-8">
         <header className="space-y-2 text-center">
-          {masterProfile?.showOnBookingPage && masterProfile.displayName.trim() && (
-            <p className="text-lg font-semibold text-primaryActive">{masterProfile.displayName}</p>
-          )}
+          {masterProfile?.name.trim() && <p className="text-lg font-semibold text-primaryActive">{masterProfile.name}</p>}
           <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">{title}</h1>
           <p className="text-lg text-muted">Выберите услугу, дату и время визита</p>
         </header>
@@ -374,7 +316,7 @@ export default function BookingExperience({
           <button
             type="submit"
             disabled={services.length === 0 || !time || !name.trim() || !phone.trim()}
-            className="w-full rounded-2xl border border-primary bg-primary px-6 py-4 text-xl font-semibold text-white transition hover:border-primaryHover hover:bg-primaryHover active:border-primaryActive active:bg-primaryActive focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/20 disabled:cursor-not-allowed disabled:border-disabledBg disabled:bg-disabledBg disabled:text-disabledText"
+            className="w-full rounded-2xl border border-primary bg-primary px-6 py-4 text-xl font-semibold text-white transition hover:border-primaryHover hover:bg-primaryHover active:border-primaryActive active:bg-primaryActive focus-visible:outline-none focus-visible:ring-4 focus:ring-primary/20 disabled:cursor-not-allowed disabled:border-disabledBg disabled:bg-disabledBg disabled:text-disabledText"
           >
             {services.length === 0 ? "Нет доступных услуг" : time ? cta : "Нет свободного времени"}
           </button>
