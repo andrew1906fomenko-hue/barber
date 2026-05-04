@@ -4,35 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-type MasterAccount = {
-  email: string;
-  name: string;
-  password: string;
-  slug: string;
-  createdAt: string;
-};
-
-const accountsKey = "barber-master-accounts";
-const sessionKey = "barber-master-session";
-
 const normalizeEmail = (value: string) => value.trim().toLowerCase();
-
-const normalizeSlug = (value: string) =>
-  value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "") || "master";
-
-const getStoredAccounts = () => {
-  try {
-    return JSON.parse(window.localStorage.getItem(accountsKey) || "[]") as MasterAccount[];
-  } catch {
-    return [];
-  }
-};
-
-const getMasterStorageKey = (email: string, key: string) => `barber-master:${email}:${key}`;
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -40,40 +12,51 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const register = (event: React.FormEvent) => {
+  const register = async (event: React.FormEvent) => {
     event.preventDefault();
+    setError("");
+
     const normalizedEmail = normalizeEmail(email);
     const normalizedName = name.trim();
-    const slug = normalizeSlug(normalizedEmail.split("@")[0]);
 
     if (!normalizedName || !normalizedEmail || password.length < 6) {
       setError("Введите имя мастера, email и пароль от 6 символов.");
       return;
     }
 
-    const accounts = getStoredAccounts();
-    if (accounts.some((account) => account.email === normalizedEmail)) {
-      setError("Аккаунт с таким email уже существует.");
-      return;
+    setIsLoading(true);
+
+    try {
+      const response = await fetch("/api/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: normalizedEmail,
+          name: normalizedName,
+          password,
+        }),
+      });
+
+      const data = (await response.json()) as {
+        success: boolean;
+        error?: string;
+      };
+
+      if (!response.ok || !data.success) {
+        setError(data.error || "Не удалось создать аккаунт.");
+        return;
+      }
+
+      router.push("/dashboard");
+    } catch {
+      setError("Не удалось подключиться к серверу.");
+    } finally {
+      setIsLoading(false);
     }
-
-    const uniqueSlug = accounts.some((account) => account.slug === slug) ? `${slug}-${Date.now().toString().slice(-4)}` : slug;
-    const account: MasterAccount = {
-      email: normalizedEmail,
-      name: normalizedName,
-      password,
-      slug: uniqueSlug,
-      createdAt: new Date().toISOString(),
-    };
-
-    window.localStorage.setItem(accountsKey, JSON.stringify([...accounts, account]));
-    window.localStorage.setItem(sessionKey, JSON.stringify({ email: normalizedEmail }));
-    window.localStorage.setItem(
-      getMasterStorageKey(normalizedEmail, "master-profile"),
-      JSON.stringify({ displayName: normalizedName, slug: uniqueSlug, showOnBookingPage: true }),
-    );
-    router.replace("/dashboard");
   };
 
   return (
@@ -85,7 +68,7 @@ export default function RegisterPage() {
           </Link>
           <h1 className="mt-5 text-4xl font-semibold tracking-tight md:text-5xl">Регистрация мастера</h1>
           <p className="mt-4 max-w-xl text-lg text-muted">
-            Создайте личный кабинет по email. У каждого мастера будут свои услуги, записи, ссылка и QR-код.
+            Создайте личный кабинет по email. Аккаунт будет храниться на сервере и работать на разных устройствах.
           </p>
         </div>
 
@@ -125,8 +108,8 @@ export default function RegisterPage() {
 
           {error && <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
 
-          <button type="submit" className="w-full rounded-2xl bg-accent px-5 py-3 font-semibold text-white">
-            Создать кабинет
+          <button type="submit" disabled={isLoading} className="w-full rounded-2xl bg-accent px-5 py-3 font-semibold text-white disabled:opacity-60">
+            {isLoading ? "Создаём..." : "Создать кабинет"}
           </button>
           <p className="text-center text-sm text-muted">
             Уже есть кабинет?{" "}

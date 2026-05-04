@@ -39,12 +39,9 @@ type MasterProfile = {
 type MasterAccount = {
   email: string;
   name: string;
-  password: string;
   slug: string;
-  createdAt: string;
 };
 
-const accountsKey = "barber-master-accounts";
 const fallbackServices: Service[] = [
   { id: "s1", title: "Стрижка", duration: "45 мин", durationMinutes: 45, price: "1 500 руб." },
   { id: "s2", title: "Коррекция бороды", duration: "30 мин", durationMinutes: 30, price: "900 руб." },
@@ -72,48 +69,6 @@ const intervalsOverlap = (startA: number, endA: number, startB: number, endB: nu
   startA < endB && startB < endA;
 
 const getMasterStorageKey = (email: string, key: string) => `barber-master:${email}:${key}`;
-
-const getStoredAccounts = () => {
-  try {
-    return JSON.parse(window.localStorage.getItem(accountsKey) || "[]") as MasterAccount[];
-  } catch {
-    return [];
-  }
-};
-
-const getStoredProfile = (email: string) => {
-  try {
-    const raw = window.localStorage.getItem(getMasterStorageKey(email, "master-profile"));
-    return raw ? (JSON.parse(raw) as MasterProfile) : null;
-  } catch {
-    return null;
-  }
-};
-
-const findAccountBySlug = (slug: string) => {
-  const accounts = getStoredAccounts();
-  const account = accounts.find((item) => item.slug === slug || getStoredProfile(item.email)?.slug === slug);
-  if (account) return account;
-
-  for (let index = 0; index < window.localStorage.length; index += 1) {
-    const key = window.localStorage.key(index);
-    if (!key?.startsWith("barber-master:") || !key.endsWith(":master-profile")) continue;
-
-    const profile = JSON.parse(window.localStorage.getItem(key) || "null") as MasterProfile | null;
-    if (profile?.slug !== slug) continue;
-
-    const email = key.replace("barber-master:", "").replace(":master-profile", "");
-    return accounts.find((item) => item.email === email) || {
-      email,
-      name: profile.displayName || slug,
-      password: "",
-      slug: profile.slug,
-      createdAt: "",
-    };
-  }
-
-  return null;
-};
 
 export default function BookingExperience({
   masterSlug,
@@ -144,7 +99,36 @@ export default function BookingExperience({
   const [appointmentsStorageKey, setAppointmentsStorageKey] = useState("barber-appointments");
 
   useEffect(() => {
-    const account = masterSlug ? findAccountBySlug(masterSlug) : null;
+    const loadMaster = async () => {
+      let account: MasterAccount | null = null;
+
+      if (masterSlug) {
+        try {
+          const response = await fetch(`/api/masters/${encodeURIComponent(masterSlug)}`);
+          const data = (await response.json()) as {
+            success: boolean;
+            master?: MasterAccount;
+          };
+
+          if (!response.ok || !data.success || !data.master) {
+            setServices([]);
+            setServiceId("");
+            setAppointments([]);
+            setBlockedTimes([]);
+            setMasterProfile(null);
+            return;
+          }
+
+          account = data.master;
+        } catch {
+          setServices([]);
+          setServiceId("");
+          setAppointments([]);
+          setBlockedTimes([]);
+          setMasterProfile(null);
+          return;
+        }
+      }
 
     if (masterSlug && !account) {
       setServices([]);
@@ -160,7 +144,6 @@ export default function BookingExperience({
     const savedServices = window.localStorage.getItem(storageKey("services"));
     const savedAppointments = window.localStorage.getItem(appointmentKey);
     const savedBlockedTimes = window.localStorage.getItem(storageKey("blocked-times"));
-    const savedMasterProfile = window.localStorage.getItem(storageKey("master-profile"));
 
     setAppointmentsStorageKey(appointmentKey);
 
@@ -176,9 +159,7 @@ export default function BookingExperience({
       setBlockedTimes([]);
     }
 
-    if (savedMasterProfile) {
-      setMasterProfile(JSON.parse(savedMasterProfile));
-    } else if (account) {
+    if (account) {
       setMasterProfile({ displayName: account.name, slug: account.slug, showOnBookingPage: true });
     } else {
       setMasterProfile(null);
@@ -208,8 +189,11 @@ export default function BookingExperience({
       return;
     }
 
-    setServices(activeServices);
-    setServiceId(activeServices[0].id);
+      setServices(activeServices);
+      setServiceId(activeServices[0].id);
+    };
+
+    void loadMaster();
   }, [masterSlug]);
 
   const selectedService = services.find((item) => item.id === serviceId);

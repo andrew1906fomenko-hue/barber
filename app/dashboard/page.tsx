@@ -43,18 +43,10 @@ type MasterProfile = {
 
 type AuthSession = {
   email: string;
-};
-
-type MasterAccount = {
-  email: string;
   name: string;
-  password: string;
   slug: string;
-  createdAt: string;
 };
 
-const accountsKey = "barber-master-accounts";
-const sessionKey = "barber-master-session";
 const nav: Section[] = ["Главная", "Услуги", "График работы", "Аналитика", "Финансы", "Настройки"];
 const weekDays = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 const timeSlots = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00"];
@@ -90,14 +82,6 @@ const defaultMasterProfile: MasterProfile = {
 };
 
 const getMasterStorageKey = (email: string, key: string) => `barber-master:${email}:${key}`;
-
-const getStoredAccounts = () => {
-  try {
-    return JSON.parse(window.localStorage.getItem(accountsKey) || "[]") as MasterAccount[];
-  } catch {
-    return [];
-  }
-};
 
 const normalizeEmailSlug = (email: string) =>
   email
@@ -209,13 +193,12 @@ export default function DashboardPage() {
   const bookingPath = `/m/${masterProfile.slug || "master"}`;
   const bookingUrl = typeof window === "undefined" ? bookingPath : `${window.location.origin}${bookingPath}`;
 
-  const loadStoredData = (email = authSession?.email) => {
+  const loadStoredData = (session = authSession) => {
+    const email = session?.email;
     if (!email) return;
-    const account = getStoredAccounts().find((item) => item.email === email);
     const savedServices = window.localStorage.getItem(getMasterStorageKey(email, "services"));
     const savedAppointments = window.localStorage.getItem(getMasterStorageKey(email, "appointments"));
     const savedBlockedTimes = window.localStorage.getItem(getMasterStorageKey(email, "blocked-times"));
-    const savedMasterProfile = window.localStorage.getItem(getMasterStorageKey(email, "master-profile"));
 
     if (savedServices) {
       setServices(JSON.parse(savedServices));
@@ -235,40 +218,46 @@ export default function DashboardPage() {
       setBlockedTimes([]);
     }
 
-    if (savedMasterProfile) {
-      const parsedProfile = JSON.parse(savedMasterProfile) as MasterProfile;
-      setMasterProfile({
-        ...defaultMasterProfile,
-        ...parsedProfile,
-        slug: resolveLatinSlug(parsedProfile.slug, account?.slug || normalizeEmailSlug(email)),
-      });
-    } else if (account) {
-      setMasterProfile({ ...defaultMasterProfile, displayName: account.name, slug: resolveLatinSlug(account.slug, normalizeEmailSlug(email)) });
-    } else {
-      setMasterProfile(defaultMasterProfile);
-    }
+    setMasterProfile({
+      ...defaultMasterProfile,
+      displayName: session.name,
+      slug: resolveLatinSlug(session.slug, normalizeEmailSlug(email)),
+    });
   };
 
   useEffect(() => {
-    const savedSession = window.localStorage.getItem(sessionKey);
-    if (!savedSession) {
-      router.replace("/register");
-      return;
-    }
+    let currentSession: AuthSession | null = null;
 
-    const session = JSON.parse(savedSession) as AuthSession;
-    const accountExists = getStoredAccounts().some((item) => item.email === session.email);
-    if (!accountExists) {
-      window.localStorage.removeItem(sessionKey);
-      router.replace("/register");
-      return;
-    }
+    const loadSession = async () => {
+      try {
+        const response = await fetch("/api/me");
+        const data = (await response.json()) as {
+          success: boolean;
+          user?: AuthSession;
+        };
 
-    setAuthSession(session);
-    loadStoredData(session.email);
-    setStorageReady(true);
+        if (!response.ok || !data.success || !data.user) {
+          router.replace("/register");
+          return;
+        }
 
-    const refreshData = () => loadStoredData(session.email);
+        currentSession = data.user;
+        setAuthSession(data.user);
+        loadStoredData(data.user);
+        setStorageReady(true);
+      } catch {
+        router.replace("/register");
+      }
+    };
+
+    const refreshData = () => {
+      if (currentSession) {
+        loadStoredData(currentSession);
+      }
+    };
+
+    void loadSession();
+
     window.addEventListener("storage", refreshData);
     window.addEventListener("focus", refreshData);
     window.addEventListener("barber-appointments-updated", refreshData);
@@ -294,31 +283,6 @@ export default function DashboardPage() {
     if (!storageReady || !authSession) return;
     window.localStorage.setItem(getMasterStorageKey(authSession.email, "blocked-times"), JSON.stringify(blockedTimes));
   }, [authSession, blockedTimes, storageReady]);
-
-  useEffect(() => {
-    if (!storageReady || !authSession) return;
-    window.localStorage.setItem(getMasterStorageKey(authSession.email, "master-profile"), JSON.stringify(masterProfile));
-
-    const accounts = getStoredAccounts();
-    const accountExists = accounts.some((account) => account.email === authSession.email);
-    const nextAccounts = accountExists
-      ? accounts.map((account) =>
-          account.email === authSession.email
-            ? { ...account, name: masterProfile.displayName || account.name, slug: masterProfile.slug || account.slug }
-            : account,
-        )
-      : [
-          ...accounts,
-          {
-            email: authSession.email,
-            name: masterProfile.displayName || authSession.email,
-            password: "",
-            slug: masterProfile.slug || normalizeEmailSlug(authSession.email),
-            createdAt: new Date().toISOString(),
-          },
-        ];
-    window.localStorage.setItem(accountsKey, JSON.stringify(nextAccounts));
-  }, [authSession, masterProfile, storageReady]);
 
   const selectedDateObject = useMemo(() => {
     const [year, month, day] = selectedDate.split("-").map(Number);
@@ -359,8 +323,8 @@ export default function DashboardPage() {
     }
   };
 
-  const logout = () => {
-    window.localStorage.removeItem(sessionKey);
+  const logout = async () => {
+    await fetch("/api/logout", { method: "POST" });
     router.replace("/login");
   };
 
@@ -1405,9 +1369,7 @@ function SettingsSection(props: {
       return;
     }
 
-    const slugTaken = getStoredAccounts().some((account) => account.email !== props.email && account.slug === slug);
-    const uniqueSlug = slugTaken ? `${slug}-${normalizeEmailSlug(props.email)}` : slug;
-    props.setMasterProfile((current) => ({ ...current, slug: uniqueSlug }));
+    props.setMasterProfile((current) => ({ ...current, slug }));
   };
   const fillEmptySlug = () => {
     props.setMasterProfile((current) => ({

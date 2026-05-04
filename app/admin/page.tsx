@@ -36,9 +36,6 @@ type Appointment = {
   status: string;
 };
 
-const accountsKey = "barber-master-accounts";
-const sessionKey = "barber-master-session";
-const adminSessionKey = "barber-admin-session";
 const adminPassword = "admin";
 
 const getMasterStorageKey = (email: string, key: string) => `barber-master:${email}:${key}`;
@@ -59,18 +56,12 @@ const readJson = <T,>(key: string, fallback: T): T => {
   }
 };
 
-const writeJson = (key: string, value: unknown) => {
-  window.localStorage.setItem(key, JSON.stringify(value));
-};
-
-const getAccounts = () => readJson<MasterAccount[]>(accountsKey, []);
-
 const getProfile = (account: MasterAccount) =>
-  readJson<MasterProfile>(getMasterStorageKey(account.email, "master-profile"), {
+  ({
     displayName: account.name,
     slug: account.slug,
     showOnBookingPage: true,
-  });
+  }) as MasterProfile;
 
 const getServices = (email: string) => readJson<Service[]>(getMasterStorageKey(email, "services"), []);
 const getAppointments = (email: string) => readJson<Appointment[]>(getMasterStorageKey(email, "appointments"), []);
@@ -114,10 +105,21 @@ export default function AdminPage() {
     return text.includes(query.trim().toLowerCase());
   });
 
-  const refresh = () => {
-    const nextAccounts = getAccounts();
-    setAccounts(nextAccounts);
-    setSelectedEmail((current) => (current && nextAccounts.some((account) => account.email === current) ? current : nextAccounts[0]?.email || ""));
+  const refresh = async () => {
+    try {
+      const response = await fetch("/api/users");
+      const data = (await response.json()) as { success: boolean; users?: MasterAccount[]; error?: string };
+
+      if (!response.ok || !data.success || !data.users) {
+        showToast(data.error || "РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ РјР°СЃС‚РµСЂРѕРІ");
+        return;
+      }
+
+      setAccounts(data.users);
+      setSelectedEmail((current) => (current && data.users!.some((account) => account.email === current) ? current : data.users![0]?.email || ""));
+    } catch {
+      showToast("РќРµ СѓРґР°Р»РѕСЃСЊ РїРѕРґРєР»СЋС‡РёС‚СЊСЃСЏ Рє СЃРµСЂРІРµСЂСѓ");
+    }
   };
 
   const showToast = (message: string) => {
@@ -126,12 +128,10 @@ export default function AdminPage() {
   };
 
   useEffect(() => {
-    const savedAdminSession = window.localStorage.getItem(adminSessionKey);
-    if (savedAdminSession === "active") {
-      setIsAuthorized(true);
-      refresh();
+    if (isAuthorized) {
+      void refresh();
     }
-  }, []);
+  }, [isAuthorized]);
 
   const login = (event: React.FormEvent) => {
     event.preventDefault();
@@ -140,67 +140,60 @@ export default function AdminPage() {
       return;
     }
 
-    window.localStorage.setItem(adminSessionKey, "active");
     setIsAuthorized(true);
-    refresh();
   };
 
   const logoutAdmin = () => {
-    window.localStorage.removeItem(adminSessionKey);
     setIsAuthorized(false);
   };
 
-  const updateAccount = (field: "name" | "slug" | "password", value: string) => {
+  const updateAccount = async (field: "name" | "slug" | "password", value: string) => {
     if (!selectedAccount) return;
 
     const normalizedValue = field === "slug" ? normalizeSlug(value) : value;
-    if (field === "slug" && accounts.some((account) => account.email !== selectedAccount.email && account.slug === normalizedValue)) {
+    if (field === "slug") {
       showToast("Такая ссылка уже занята");
       return;
     }
 
-    const nextAccounts = accounts.map((account) =>
-      account.email === selectedAccount.email ? { ...account, [field]: normalizedValue } : account,
-    );
-    const nextProfile = {
-      ...getProfile(selectedAccount),
-      ...(field === "name" ? { displayName: normalizedValue } : {}),
-      ...(field === "slug" ? { slug: normalizedValue } : {}),
-    };
-
-    writeJson(accountsKey, nextAccounts);
-    writeJson(getMasterStorageKey(selectedAccount.email, "master-profile"), nextProfile);
-    setAccounts(nextAccounts);
+    await fetch("/api/users", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: selectedAccount.email, [field]: normalizedValue }),
+    });
+    await refresh();
     showToast("Данные сохранены");
   };
 
   const toggleBookingName = () => {
+    showToast("Имя мастера берется из PostgreSQL.");
+  };
+
+  const enterMasterCabinet = async () => {
     if (!selectedAccount) return;
-    const profile = getProfile(selectedAccount);
-    writeJson(getMasterStorageKey(selectedAccount.email, "master-profile"), {
-      ...profile,
-      showOnBookingPage: !profile.showOnBookingPage,
+    const response = await fetch("/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: selectedAccount.email, password: selectedAccount.password }),
     });
-    refresh();
+
+    if (response.ok) {
+      window.location.href = "/dashboard";
+    } else {
+      showToast("Не удалось открыть кабинет мастера.");
+    }
   };
 
-  const enterMasterCabinet = () => {
-    if (!selectedAccount) return;
-    writeJson(sessionKey, { email: selectedAccount.email });
-    window.location.href = "/dashboard";
-  };
-
-  const deleteMaster = () => {
+  const deleteMaster = async () => {
     if (!selectedAccount) return;
     const approved = window.confirm(`Удалить мастера ${selectedAccount.email} и все его данные?`);
     if (!approved) return;
 
-    const nextAccounts = accounts.filter((account) => account.email !== selectedAccount.email);
-    writeJson(accountsKey, nextAccounts);
-    ["services", "appointments", "blocked-times", "master-profile"].forEach((key) => {
+    await fetch(`/api/users?email=${encodeURIComponent(selectedAccount.email)}`, { method: "DELETE" });
+    ["services", "appointments", "blocked-times"].forEach((key) => {
       window.localStorage.removeItem(getMasterStorageKey(selectedAccount.email, key));
     });
-    refresh();
+    await refresh();
     showToast("Мастер удален");
   };
 
