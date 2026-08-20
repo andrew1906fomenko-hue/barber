@@ -14,8 +14,14 @@ import { resolve } from "path";
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
+const databaseUrl = process.env.DATABASE_URL;
+const needsSsl =
+  databaseUrl?.includes("supabase.co") || databaseUrl?.includes("pooler.supabase.com") || databaseUrl?.includes("sslmode=require");
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const pool = new Pool({
+  connectionString: databaseUrl,
+  ssl: needsSsl ? { rejectUnauthorized: false } : undefined,
+});
 
 app.use(helmet());
 app.use(cors());
@@ -25,6 +31,7 @@ app.use("/api/auth", rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
 app.use("/api", rateLimit({ windowMs: 60 * 1000, max: 300 }));
 
 app.use(express.static("."));
+app.use("/uploads", express.static(resolve("public/uploads")));
 
 async function initDb() {
   const sql = readFileSync(resolve("db/schema.sql"), "utf8");
@@ -33,6 +40,11 @@ async function initDb() {
 
 function makeToken(userId) {
   return jwt.sign({ userId }, JWT_SECRET, { expiresIn: "7d" });
+}
+
+function firstUploadUrl(value) {
+  const items = Array.isArray(value) ? value : [];
+  return items.find((item) => typeof item === "string" && item.startsWith("/uploads/")) || "";
 }
 
 function auth(req, res, next) {
@@ -51,7 +63,28 @@ async function loadMaster(masterId) {
   if (!m.rows[0]) return null;
   const master = m.rows[0];
 
-  const services = await pool.query("SELECT id, title, price, duration_min AS \"durationMin\", notes FROM services WHERE master_id = $1", [masterId]);
+  const services = await pool.query(
+    `SELECT
+      id,
+      title,
+      price,
+      duration_min AS "durationMin",
+      notes,
+      description,
+      category,
+      included_items AS "includedItems",
+      material_name AS "materialName",
+      material_cost AS "materialCost",
+      photo_url AS "photoUrl",
+      calendar_color AS "calendarColor",
+      sort_order AS "sortOrder",
+      is_public AS "onlineBookingEnabled",
+      is_active AS active
+    FROM services
+    WHERE master_id = $1
+    ORDER BY sort_order, title`,
+    [masterId],
+  );
   const offDays = await pool.query("SELECT day::text AS day FROM off_days WHERE master_id = $1 ORDER BY day", [masterId]);
   const appointments = await pool.query(
     "SELECT id, service_id AS \"serviceId\", date::text AS date, start_time AS start, end_time AS end, client_name AS \"clientName\", client_phone AS \"clientPhone\" FROM appointments WHERE master_id = $1",
@@ -163,11 +196,53 @@ app.put("/api/masters/:id", auth, async (req, res) => {
       [m.name, m.slug, m.notes || "", m.workStart, m.workEnd, m.slotStepMin, m.bufferMin, JSON.stringify(m.workDays || []), m.showPrice !== false, masterId],
     );
 
+    const existingServices = await client.query("SELECT * FROM services WHERE master_id = $1", [masterId]);
+    const existingServiceById = new Map(existingServices.rows.map((service) => [service.id, service]));
     await client.query("DELETE FROM services WHERE master_id = $1", [masterId]);
     for (const s of m.services || []) {
+      const previous = existingServiceById.get(s.id);
+      const includedItems = Array.isArray(s.includedItems)
+        ? s.includedItems
+        : Array.isArray(previous?.included_items)
+          ? previous.included_items
+          : [];
       await client.query(
-        "INSERT INTO services (id, master_id, title, price, duration_min, notes) VALUES ($1,$2,$3,$4,$5,$6)",
-        [s.id || randomUUID(), masterId, s.title, s.price, s.durationMin, s.notes || ""],
+        `INSERT INTO services (
+          id,
+          master_id,
+          title,
+          price,
+          duration_min,
+          notes,
+          description,
+          category,
+          included_items,
+          material_name,
+          material_cost,
+          photo_url,
+          calendar_color,
+          sort_order,
+          is_public,
+          is_active
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11,$12,$13,$14,$15,$16)`,
+        [
+          s.id || randomUUID(),
+          masterId,
+          s.title,
+          s.price,
+          s.durationMin ?? s.duration ?? previous?.duration_min ?? 60,
+          s.notes ?? s.preparation ?? previous?.notes ?? "",
+          s.description ?? previous?.description ?? "",
+          s.category ?? previous?.category ?? "",
+          JSON.stringify(includedItems),
+          s.materialName ?? previous?.material_name ?? "",
+          Number(s.materialCost ?? previous?.material_cost) || 0,
+          s.photoUrl || previous?.photo_url || firstUploadUrl(previous?.included_items) || firstUploadUrl(s.includedItems) || "",
+          s.calendarColor ?? previous?.calendar_color ?? "#0f766e",
+          Number(s.sortOrder ?? previous?.sort_order) || 0,
+          s.onlineBookingEnabled ?? s.isPublic ?? previous?.is_public ?? true,
+          s.active ?? s.isActive ?? previous?.is_active ?? true,
+        ],
       );
     }
 

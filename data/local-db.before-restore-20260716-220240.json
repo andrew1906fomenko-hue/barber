@@ -1,0 +1,167 @@
+{
+  "users": [
+    {
+      "id": "77fe02d5-8ca8-4d66-8b16-e73952cafb58",
+      "email": "test22@test.ru",
+      "name": "test22",
+      "password": "$2a$10$0PRuPi59vlu2/xieYBj20.Gbkq5zEnOCwP1Ye9rlN8cUxGj8nOPLW",
+      "created_at": "2026-07-16T18:45:42.638Z"
+    }
+  ],
+  "masters": [
+    {
+      "id": "85279a8e-1d7a-4dbf-b42e-a6727dba92b6",
+      "user_id": "77fe02d5-8ca8-4d66-8b16-e73952cafb58",
+      "name": "test22",
+      "slug": "test22",
+      "notes": "",
+      "profession": "",
+      "description": "",
+      "city": "",
+      "address": "",
+      "is_online": false,
+      "phone": "",
+      "contact_link": "",
+      "social_links": {},
+      "cover_image_url": "",
+      "avatar_url": "",
+      "cover_position_x": 50,
+      "cover_position_y": 50,
+      "timezone": "Europe/Moscow",
+      "primary_color": "#0EA5E9",
+      "button_color": "#0EA5E9",
+      "cta_text": "Записаться",
+      "visible_sections": {
+        "cover": true,
+        "avatar": true,
+        "description": true,
+        "masterComment": true,
+        "address": true,
+        "contacts": true,
+        "socials": true,
+        "services": true
+      },
+      "required_fields": {
+        "name": true,
+        "phone": true,
+        "email": false,
+        "telegram": false
+      },
+      "work_start": "10:00",
+      "work_end": "20:00",
+      "slot_step_min": 30,
+      "buffer_min": 0,
+      "work_days": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "booking_enabled": true,
+      "auto_time_snap": true,
+      "weekly_schedule": {},
+      "show_price": true,
+      "min_booking_notice_min": 0,
+      "max_booking_days_ahead": 14,
+      "created_at": "2026-07-16T18:45:42.638Z",
+      "updated_at": "2026-07-16T18:45:42.638Z"
+    }
+  ],
+  "services": [],
+  "appointments": [],
+  "clients": [],
+  "blocked_times": [],
+  "telegram_connect_tokens": [],
+  "telegram_chats": [],
+  "telegram_reminders": [],
+  "subscription_plans": [
+    {
+      "id": "d7099acf-6b58-4cc5-8d74-a255f5717aff",
+      "code": "month_12",
+      "name": "12 месяцев",
+      "duration_months": 12,
+      "price": 469000,
+      "currency": "RUB",
+      "discount_percent": 20,
+      "is_active": true,
+      "sort_order": 50,
+      "created_at": "2026-07-16T18:10:12.524Z",
+      "updated_at": "2026-07-16T18:10:12.548Z"
+    },
+    {
+      "id": "a02f06ad-c1b8-43e1-85f5-1afb16aeee59",
+      "code": "month_1",
+      "name": "1 месяц",
+      "duration_months": 1,
+      "price": 49000,
+      "currency": "RUB",
+      "discount_percent": 0,
+      "is_active": true,
+      "sort_order": 10,
+      "created_at": "2026-07-16T18:10:12.533Z",
+      "updated_at": "2026-07-16T18:10:12.543Z"
+    },
+    {
+      "id": "e96f3dca-c99c-49db-977a-00364a342af6",
+      "code": "month_2",
+      "name": "2 месяца",
+      "duration_months": 2,
+      "price": 93000,
+      "currency": "RUB",
+      "discount_percent": 5,
+      "is_active": true,
+      "sort_order": 20,
+      "created_at": "2026-07-16T18:10:12.534Z",
+      "updated_at": "2026-07-16T18:10:12.545Z"
+    },
+    {
+      "id": "35226b94-e6fa-4fc9-8ec6-a3d3c4b36d95",
+      "code": "month_3",
+      "name": "3 месяца",
+      "duration_months": 3,
+      "price": 132000,
+      "currency": "RUB",
+      "discount_percent": 10,
+      "is_active": true,
+      "sort_order": 30,
+      "created_at": "2026-07-16T18:10:12.535Z",
+      "updated_at": "2026-07-16T18:10:12.546Z"
+    },
+    {
+      "id": "160706b6-325d-4e79-a184-7b68389ec4d3",
+      "code": "month_6",
+      "name": "6 месяцев",
+      "duration_months": 6,
+      "price": 249000,
+      "currency": "RUB",
+      "discount_percent": 15,
+      "is_active": true,
+      "sort_order": 40,
+      "created_at": "2026-07-16T18:10:12.537Z",
+      "updated_at": "2026-07-16T18:10:12.547Z"
+    }
+  ],
+  "subscriptions": [
+    {
+      "id": "79d25662-aa4d-415b-a485-c8093d0e4098",
+      "master_id": "53bc4d87-921c-49a6-854c-68a79886d7f1",
+      "plan_id": null,
+      "status": "trial",
+      "trial_started_at": "2026-07-16T18:10:12.503Z",
+      "trial_ends_at": "2026-08-16T18:10:12.503Z",
+      "current_period_started_at": "2026-07-16T18:10:12.503Z",
+      "current_period_ends_at": "2026-08-16T18:10:12.503Z",
+      "auto_renew": false,
+      "auto_renew_plan_id": null,
+      "cancel_at_period_end": false,
+      "payment_method_token": null,
+      "provider_customer_id": null,
+      "created_at": "2026-07-16T18:10:12.527Z",
+      "updated_at": "2026-07-16T18:10:12.527Z"
+    }
+  ],
+  "subscription_orders": [],
+  "payment_events": [],
+  "subscription_notifications": []
+}

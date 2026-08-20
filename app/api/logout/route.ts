@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 
 export async function POST() {
   const response = NextResponse.json({ success: true });
-  response.cookies.delete("user_email");
+  response.cookies.set("user_email", "", {
+    path: "/",
+    maxAge: 0,
+  });
   return response;
 }

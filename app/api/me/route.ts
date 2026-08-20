@@ -6,9 +6,7 @@ export async function GET() {
     const session = await getCurrentUserAndMaster();
 
     if (!session) {
-      const response = NextResponse.json({ success: false, error: "Нет активной сессии." }, { status: 401 });
-      response.cookies.delete("user_email");
-      return response;
+      return NextResponse.json({ success: false, error: "Нет активной сессии." }, { status: 401 });
     }
 
     return NextResponse.json({

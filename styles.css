@@ -1,10 +1,67 @@
 :root {
-  --bg: #f8f5f7;
-  --panel: #ffffff;
-  --text: #1f1a1d;
-  --muted: #8e868b;
-  --line: #ece6ea;
-  --accent: #fb5d81;
+  --color-primary: 15 118 110;
+  --color-primary-pressed: 17 94 89;
+  --color-primary-surface: 204 251 241;
+  --color-background: 240 253 250;
+  --color-surface: 255 255 255;
+  --color-text-primary: 19 47 45;
+  --color-text-secondary: 71 99 96;
+  --color-text-disabled: 145 167 164;
+  --color-border: 178 223 216;
+  --color-success: 15 118 110;
+  --color-warning: 146 64 14;
+  --color-info: 14 116 144;
+  --color-danger: 185 28 28;
+  --primary: rgb(var(--color-primary));
+  --primaryPressed: rgb(var(--color-primary-pressed));
+  --primarySurface: rgb(var(--color-primary-surface));
+  --background: rgb(var(--color-background));
+  --surface: rgb(var(--color-surface));
+  --textPrimary: rgb(var(--color-text-primary));
+  --textSecondary: rgb(var(--color-text-secondary));
+  --textDisabled: rgb(var(--color-text-disabled));
+  --border: rgb(var(--color-border));
+  --success: rgb(var(--color-success));
+  --warning: rgb(var(--color-warning));
+  --info: rgb(var(--color-info));
+  --danger: rgb(var(--color-danger));
+  --bg: var(--background);
+  --panel: var(--surface);
+  --text: var(--textPrimary);
+  --muted: var(--textSecondary);
+  --line: var(--border);
+  --accent: var(--primary);
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --app-font-sans: var(--font-sans);
+  --systemFontStack: var(--font-sans);
+  --chatTypography: var(--font-sans);
+  --text-display-size: 32px;
+  --text-display-line: 38px;
+  --text-display-weight: 700;
+  --text-screen-title-size: 20px;
+  --text-screen-title-line: 25px;
+  --text-screen-title-weight: 600;
+  --text-navigation-title-size: 17px;
+  --text-navigation-title-line: 22px;
+  --text-navigation-title-weight: 600;
+  --text-conversation-name-size: 16px;
+  --text-conversation-name-line: 21px;
+  --text-conversation-name-weight: 500;
+  --text-preview-size: 14px;
+  --text-preview-line: 20px;
+  --text-message-size: 16px;
+  --text-message-line: 22px;
+  --text-input-size: 16px;
+  --text-input-line: 22px;
+  --text-metadata-size: 11px;
+  --text-metadata-line: 15px;
+  --text-date-chip-size: 12px;
+  --text-date-chip-line: 16px;
+  --text-button-size: 14px;
+  --text-button-line: 20px;
+  --text-section-label-size: 13px;
+  --text-section-label-line: 18px;
 }
 
 * { box-sizing: border-box; }
@@ -13,7 +70,14 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  font-family: var(--app-font-sans);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
 }
 
 .app-shell {
@@ -50,7 +114,7 @@ body {
 
 .tab {
   border: 1px solid var(--line);
-  background: #fff;
+  background: var(--surface);
   color: var(--text);
   border-radius: 999px;
   padding: 8px 14px;
@@ -90,14 +154,24 @@ input, select, textarea, button {
 }
 
 button {
-  background: linear-gradient(90deg, #ff7393, #fb5d81);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--primary);
   color: #fff;
   border: 0;
   cursor: pointer;
 }
 
+button i[class^="ph"],
+button i[class*=" ph"] {
+  font-size: 1.05em;
+  line-height: 1;
+}
+
 button.secondary {
-  background: #fff;
+  background: var(--surface);
   color: var(--text);
   border-color: var(--line);
 }
@@ -199,7 +273,7 @@ button.secondary {
   height: 30px;
   padding: 0;
   border-radius: 999px;
-  background: #111827;
+  background: var(--textPrimary);
   color: #fff;
   border: 0;
   font-size: 18px;
@@ -221,8 +295,8 @@ button.secondary {
 
 .calendar-cell {
   border: 1px solid var(--line);
-  background: #fff;
-  color: #111;
+  background: var(--surface);
+  color: var(--textPrimary);
   border-radius: 8px;
   padding: 6px 0;
   text-align: center;
@@ -236,13 +310,13 @@ button.secondary {
 }
 
 .calendar-cell.is-offday {
-  background: #fee2e2;
-  color: #991b1b;
+  background: color-mix(in srgb, var(--danger) 10%, white);
+  color: var(--danger);
 }
 
 .calendar-cell.is-selected {
-  background: #dbeafe;
-  border-color: #3b82f6;
+  background: var(--primarySurface);
+  border-color: var(--primary);
 }
 
 .list {
@@ -257,7 +331,7 @@ button.secondary {
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 10px;
-  background: #fff;
+  background: var(--surface);
 }
 
 .one-line {
@@ -310,20 +384,20 @@ button.secondary {
   max-width: 840px;
   margin: 12px auto 0;
   background: var(--panel);
-  border: 1px solid #f0ebee;
+  border: 1px solid var(--border);
   border-radius: 28px;
   padding: 28px;
   box-shadow: 0 20px 60px rgba(27, 15, 20, 0.06);
 }
 
-.client-wrap h1 { text-align: center; margin: 8px 0 6px; font-size: 52px; font-weight: 800; }
-.client-subtitle { text-align: center; margin: 0 0 20px; color: #8f878d; font-size: 28px; }
+.client-wrap h1 { text-align: center; margin: 8px 0 6px; font-size: 52px; font-weight: 700; }
+.client-subtitle { text-align: center; margin: 0 0 20px; color: var(--textSecondary); font-size: 28px; }
 
 .booking-step {
-  border: 1px solid #efe9ed;
+  border: 1px solid var(--border);
   border-radius: 22px;
   padding: 18px;
-  background: #fff;
+  background: var(--surface);
 }
 
 .booking-step h3 {
@@ -336,7 +410,7 @@ button.secondary {
 
 .step-subtitle {
   margin: 0 0 12px;
-  color: #8f878d;
+  color: var(--textSecondary);
   font-size: 16px;
 }
 
@@ -347,7 +421,7 @@ button.secondary {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: linear-gradient(180deg, #ff94ab, #fb5d81);
+  background: var(--primary);
   color: #fff;
   font-size: 16px;
   font-weight: 700;
@@ -360,11 +434,11 @@ button.secondary {
 
 .service-card {
   width: 100%;
-  border: 1px solid #e8e1e6;
+  border: 1px solid var(--border);
   border-radius: 16px;
   padding: 16px;
   text-align: left;
-  background: #fff;
+  background: var(--surface);
   color: var(--text);
 }
 
@@ -375,14 +449,14 @@ button.secondary {
 }
 
 .service-card span {
-  color: #827981;
+  color: var(--textSecondary);
   font-size: 15px;
 }
 
 .service-card.is-selected {
-  border-color: #ff8aa5;
-  background: #fff4f7;
-  box-shadow: inset 0 0 0 1px #ffc2cf;
+  border-color: var(--primary);
+  background: var(--primarySurface);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 24%, transparent);
 }
 
 .date-chips {
@@ -392,9 +466,9 @@ button.secondary {
 }
 
 .date-chip {
-  border: 1px solid #e8e1e6;
+  border: 1px solid var(--border);
   border-radius: 14px;
-  background: #fff;
+  background: var(--surface);
   color: var(--text);
   min-height: 74px;
   display: grid;
@@ -404,19 +478,19 @@ button.secondary {
 }
 
 .date-chip strong { font-size: 16px; }
-.date-chip span { color: #827981; font-size: 13px; }
+.date-chip span { color: var(--textSecondary); font-size: 13px; }
 .date-chip.is-selected {
-  background: #fff0f4;
-  border-color: #ff92ab;
-  color: #fb5d81;
+  background: var(--primarySurface);
+  border-color: var(--primary);
+  color: var(--primary);
 }
 
 .time-slots { display: flex; flex-wrap: wrap; gap: 8px; }
 
 .slot-btn {
-  background: #fff;
+  background: var(--surface);
   color: var(--text);
-  border: 1px solid #e8e1e6;
+  border: 1px solid var(--border);
   border-radius: 14px;
   min-width: 100px;
   padding: 12px 10px;
@@ -425,15 +499,15 @@ button.secondary {
 }
 
 .slot-btn.is-selected {
-  background: #ffeef2;
-  color: #fb5d81;
-  border-color: #ff9eb4;
+  background: var(--primarySurface);
+  color: var(--primary);
+  border-color: var(--primary);
 }
 
-.comment-title { margin: 16px 0 8px; text-align: center; font-size: 16px; color: #111; }
-.master-comment { margin: 0; color: #111; text-align: center; white-space: pre-wrap; }
+.comment-title { margin: 16px 0 8px; text-align: center; font-size: 16px; color: var(--textPrimary); }
+.master-comment { margin: 0; color: var(--textPrimary); text-align: center; white-space: pre-wrap; }
 .muted { color: var(--muted); }
-.hint-text { color: #6e646b; margin: 0; text-align: center; font-size: 27px; }
+.hint-text { color: var(--textSecondary); margin: 0; text-align: center; font-size: 27px; }
 .booking-submit { font-size: 38px; padding: 18px; border-radius: 16px; }
 .add-service-btn { margin-top: 10px; width: 100%; font-weight: 600; }
 
@@ -458,6 +532,63 @@ dialog::backdrop {
   padding: 16px;
 }
 
+body {
+  background: var(--background);
+  color: var(--textPrimary);
+}
+
+button {
+  background: var(--primary);
+  color: var(--surface);
+}
+
+.tab.is-active,
+.calendar-toggle,
+.step-dot {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--surface);
+}
+
+.panel,
+.tab,
+.calendar-cell,
+.list li,
+.client-wrap,
+.booking-step,
+.service-card,
+.date-chip,
+.slot-btn,
+dialog {
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--textPrimary);
+}
+
+.muted,
+.weekdays legend,
+.week-header div,
+.service-card span,
+.date-chip span,
+.client-subtitle,
+.step-subtitle,
+.hint-text {
+  color: var(--textSecondary);
+}
+
+.service-card.is-selected,
+.date-chip.is-selected,
+.slot-btn.is-selected,
+.calendar-cell.is-selected {
+  background: var(--primarySurface);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+dialog::backdrop {
+  background: rgb(var(--color-text-primary) / 0.35);
+}
+
 @media (max-width: 900px) {
   .split-layout { grid-template-columns: 1fr; }
   .one-line { flex-direction: column; align-items: flex-start; }
@@ -468,4 +599,154 @@ dialog::backdrop {
   .slot-btn { font-size: 20px; min-width: 84px; }
   .booking-submit { font-size: 28px; }
   .date-chips { grid-template-columns: repeat(3, 1fr); }
+}
+
+body {
+  font-family: var(--chatTypography);
+  font-weight: 400;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  text-transform: none;
+}
+
+button {
+  min-height: 2.75rem;
+  font-size: var(--text-button-size);
+  line-height: var(--text-button-line);
+  font-weight: 600;
+}
+
+input,
+select,
+textarea {
+  font-size: var(--text-input-size);
+  line-height: var(--text-input-line);
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+input::placeholder,
+textarea::placeholder {
+  font-size: inherit;
+  line-height: inherit;
+}
+
+code,
+kbd,
+samp,
+pre {
+  font-family: var(--font-mono);
+}
+
+.brand-btn,
+.center-label,
+h2,
+h3,
+.booking-step h3 {
+  font-size: var(--text-navigation-title-size);
+  line-height: var(--text-navigation-title-line);
+  font-weight: var(--text-navigation-title-weight);
+  letter-spacing: 0;
+}
+
+.page-title {
+  font-size: var(--text-display-size);
+  line-height: var(--text-display-line);
+  font-weight: var(--text-display-weight);
+}
+
+.tab {
+  font-size: var(--text-tab-size, 12px);
+  line-height: var(--text-tab-line, 16px);
+  font-weight: 500;
+}
+
+label,
+.weekdays legend,
+.comment-title {
+  font-size: var(--text-section-label-size);
+  line-height: var(--text-section-label-line);
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.client-wrap h1 {
+  font-size: var(--text-profile-name-size, 20px);
+  line-height: var(--text-profile-name-line, 26px);
+  font-weight: 600;
+  letter-spacing: -0.2px;
+}
+
+.client-subtitle,
+.step-subtitle,
+.service-card span {
+  font-size: var(--text-preview-size);
+  line-height: var(--text-preview-line);
+  font-weight: 400;
+}
+
+.service-card strong {
+  font-size: var(--text-conversation-name-size);
+  line-height: var(--text-conversation-name-line);
+  font-weight: var(--text-conversation-name-weight);
+}
+
+.date-chip strong {
+  font-size: var(--text-date-chip-size);
+  line-height: var(--text-date-chip-line);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.date-chip span,
+.week-header div,
+.item-actions button {
+  font-size: var(--text-metadata-size);
+  line-height: var(--text-metadata-line);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.step-dot,
+.slot-btn,
+.booking-submit,
+.add-service-btn {
+  font-size: var(--text-button-size);
+  line-height: var(--text-button-line);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.master-comment {
+  font-size: var(--text-message-size);
+  line-height: var(--text-message-line);
+  font-weight: 400;
+}
+
+.hint-text {
+  font-size: var(--text-system-message-size, 12px);
+  line-height: var(--text-system-message-line, 17px);
+  font-weight: 400;
+}
+
+@media (min-width: 768px) {
+  :root {
+    --text-screen-title-size: 16px;
+    --text-screen-title-line: 22px;
+    --text-navigation-title-size: 16px;
+    --text-navigation-title-line: 22px;
+    --text-message-size: 14px;
+    --text-message-line: 20px;
+    --text-input-size: 15px;
+    --text-input-line: 21px;
+  }
 }

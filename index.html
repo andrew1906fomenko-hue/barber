@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>FastBook</title>
+    <link rel="stylesheet" href="node_modules/@phosphor-icons/web/src/bold/style.css" />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -57,11 +58,11 @@
         <section id="view-calendar" class="panel">
           <strong id="main-month-label" class="center-label"></strong>
           <div class="main-calendar-shell">
-            <button id="main-prev-month" type="button" class="secondary calendar-side-nav is-nav-hidden" aria-label="Предыдущий месяц">←</button>
+            <button id="main-prev-month" type="button" class="secondary calendar-side-nav is-nav-hidden" aria-label="Предыдущий месяц"><i class="ph-bold ph-caret-left" aria-hidden="true"></i></button>
             <div id="main-calendar" class="calendar-grid-wrap"></div>
-            <button id="main-next-month" type="button" class="secondary calendar-side-nav is-nav-hidden" aria-label="Следующий месяц">→</button>
+            <button id="main-next-month" type="button" class="secondary calendar-side-nav is-nav-hidden" aria-label="Следующий месяц"><i class="ph-bold ph-caret-right" aria-hidden="true"></i></button>
           </div>
-          <button id="toggle-main-calendar" type="button" class="calendar-toggle" aria-label="Развернуть/свернуть календарь">⌄</button>
+          <button id="toggle-main-calendar" type="button" class="calendar-toggle" aria-label="Развернуть/свернуть календарь"><i class="ph-bold ph-caret-down" aria-hidden="true"></i></button>
 
           <h3 id="selected-date-title" class="center-label">Записи на дату</h3>
           <ul id="appointments-list" class="list"></ul>
@@ -76,7 +77,7 @@
               скрыть цену
             </label>
           </div>
-          <button id="open-service-modal" type="button" class="add-service-btn">➕ Добавить услугу</button>
+          <button id="open-service-modal" type="button" class="add-service-btn"><i class="ph-bold ph-plus" aria-hidden="true"></i> Добавить услугу</button>
         </section>
 
         <section id="view-profile" class="panel hidden">
@@ -131,9 +132,9 @@
           <section class="sub-block">
             <h3>Мои дополнительные выходные</h3>
             <div class="month-nav">
-              <button id="off-prev-month" type="button" class="secondary">←</button>
+              <button id="off-prev-month" type="button" class="secondary"><i class="ph-bold ph-caret-left" aria-hidden="true"></i></button>
               <strong id="off-month-label"></strong>
-              <button id="off-next-month" type="button" class="secondary">→</button>
+              <button id="off-next-month" type="button" class="secondary"><i class="ph-bold ph-caret-right" aria-hidden="true"></i></button>
             </div>
             <div id="offday-calendar" class="calendar-grid-wrap"></div>
             <button id="save-offdays" type="button">Сохранить</button>

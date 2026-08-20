@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
 import { initDb, normalizeEmail, normalizeSlug, pool } from "../../../lib/db";
 
 type UserListRow = {
@@ -47,6 +48,7 @@ export async function GET() {
             FROM appointments
             LEFT JOIN services ON services.id = appointments.service_id
             WHERE appointments.master_id = $1
+              AND COALESCE(appointments.status, 'active') NOT IN ('no_show', 'no_show_deleted')
           `,
           [user.master_id],
         );
@@ -70,7 +72,11 @@ export async function GET() {
     return NextResponse.json({ success: true, users });
   } catch (error) {
     console.error("Users GET error:", error);
-    return NextResponse.json({ success: false, error: "Ошибка загрузки пользователей." }, { status: 500 });
+    const code = typeof error === "object" && error && "code" in error ? String((error as { code?: unknown }).code) : "";
+    const errorMessage = ["ENOTFOUND", "EAI_AGAIN", "ECONNREFUSED", "ECONNRESET", "ETIMEDOUT"].includes(code)
+      ? "Нет подключения к основной базе данных. Проверьте DATABASE_URL, интернет и доступность Supabase."
+      : "Ошибка загрузки пользователей.";
+    return NextResponse.json({ success: false, error: errorMessage }, { status: 500 });
   }
 }
 
@@ -131,7 +137,7 @@ export async function PATCH(request: Request) {
         return NextResponse.json({ success: false, error: "Пароль должен быть от 6 символов." }, { status: 400 });
       }
 
-      await pool.query("UPDATE users SET password = $1 WHERE email = $2", [body.password, email]);
+      await pool.query("UPDATE users SET password = $1 WHERE email = $2", [await bcrypt.hash(body.password, 10), email]);
     }
 
     return NextResponse.json({ success: true });

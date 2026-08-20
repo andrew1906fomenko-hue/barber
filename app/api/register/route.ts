@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
 import { createUniqueSlug, initDb, normalizeEmail, pool } from "../../../lib/db";
+import { ensureTrialSubscription } from "../../../lib/subscription";
 
 export async function POST(request: Request) {
   try {
@@ -25,6 +27,7 @@ export async function POST(request: Request) {
     }
 
     const slug = await createUniqueSlug(email, name);
+    const passwordHash = await bcrypt.hash(password, 10);
     const result = await pool.query<{ user_id: string; master_id: string }>(
       `
         WITH new_user AS (
@@ -36,7 +39,7 @@ export async function POST(request: Request) {
         SELECT id, $2, $4 FROM new_user
         RETURNING user_id, id AS master_id
       `,
-      [email, name, password, slug],
+      [email, name, passwordHash, slug],
     );
 
     const response = NextResponse.json({
@@ -45,6 +48,7 @@ export async function POST(request: Request) {
       master: { id: result.rows[0].master_id, name, slug },
       profile: { displayName: name, slug, showOnBookingPage: true },
     });
+    await ensureTrialSubscription(result.rows[0].master_id);
     response.cookies.set("user_email", email, {
       httpOnly: true,
       sameSite: "lax",
