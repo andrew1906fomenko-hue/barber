@@ -1,5 +1,5 @@
-node_modules
-.next
+node_modules/
+.next/
 .next-build
 .env
 .env.local
@@ -10,3 +10,6 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .cache/
+
+data/*.tmp
+data/*.before-auto-*.json
