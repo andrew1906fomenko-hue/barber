@@ -304,7 +304,23 @@ const paramsByColumns = (columns: string[], params: unknown[]) => {
   return values;
 };
 const result = <T>(rows: T[]): QueryResult<T> => ({ rows, rowCount: rows.length });
-const defaultVisibleSections = { cover: true, avatar: true, description: true, masterComment: true, address: true, contacts: true, socials: true, services: true, serviceImages: false, serviceCards: false, serviceCardStyle: "stack" };
+const defaultVisibleSections = {
+  cover: true,
+  avatar: true,
+  description: true,
+  masterComment: true,
+  address: true,
+  contacts: true,
+  socials: true,
+  services: true,
+  serviceImages: false,
+  serviceCards: false,
+  dateWheel: false,
+  dateCalendar: false,
+  serviceCardStyle: "stack",
+  headingMode: "friendly",
+  accentMode: "default",
+};
 const defaultRequiredFields = { name: true, phone: true, email: false, telegram: false };
 const normalizeVisibleSections = (sections?: Record<string, boolean | string>) =>
   ({
@@ -1636,7 +1652,9 @@ export class LocalPool {
         number,
         string,
       ];
-      const master = db.masters.find((item) => item.id === id);
+      const master = text.includes("where user_id = $20")
+        ? db.masters.find((item) => item.user_id === id)
+        : db.masters.find((item) => item.id === id);
       if (!master) return finish([]);
       Object.assign(master, {
         notes,
