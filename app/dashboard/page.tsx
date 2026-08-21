@@ -398,7 +398,210 @@ const getMonthDays = (monthDate: Date) => { const year = monthDate.getFullYear()
 const getSelectedWeekDays = (date: Date) => { const monday = new Date(date); monday.setDate(date.getDate() - ((date.getDay() + 6) % 7)); return Array.from({ length: 7 }, (_, index) => { const day = new Date(monday); day.setDate(monday.getDate() + index); return day; }); };
 function usePersistentBoolean(key: string, defaultValue = false) { const [value, setValue] = useState(defaultValue); const [loaded, setLoaded] = useState(false); useEffect(() => { const storedValue = window.localStorage.getItem(key); setValue(storedValue === null ? defaultValue : storedValue === "true"); setLoaded(true); }, [defaultValue, key]); useEffect(() => { if (!loaded)
     return; window.localStorage.setItem(key, String(value)); }, [key, loaded, value]); return [value, setValue] as const; }
-export default function DashboardPage() { const router = useRouter(); const today = useMemo(() => new Date(), []); const dashboardSwipeStageRef = useRef<HTMLDivElement | null>(null); const dashboardSwipeStart = useRef<{
+function useMobileKeyboardViewportVars() {
+    useEffect(() => {
+        if (typeof window === "undefined" || typeof document === "undefined")
+            return;
+        const root = document.documentElement;
+        const updateViewportVars = () => {
+            const viewport = window.visualViewport;
+            const viewportHeight = viewport?.height || window.innerHeight;
+            const keyboardInset = viewport ? Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop) : 0;
+            root.style.setProperty("--dashboard-visual-viewport-height", `${Math.round(viewportHeight)}px`);
+            root.style.setProperty("--dashboard-keyboard-inset", `${Math.round(keyboardInset)}px`);
+        };
+        updateViewportVars();
+        window.visualViewport?.addEventListener("resize", updateViewportVars);
+        window.visualViewport?.addEventListener("scroll", updateViewportVars);
+        window.addEventListener("resize", updateViewportVars);
+        window.addEventListener("orientationchange", updateViewportVars);
+        return () => {
+            window.visualViewport?.removeEventListener("resize", updateViewportVars);
+            window.visualViewport?.removeEventListener("scroll", updateViewportVars);
+            window.removeEventListener("resize", updateViewportVars);
+            window.removeEventListener("orientationchange", updateViewportVars);
+            root.style.removeProperty("--dashboard-visual-viewport-height");
+            root.style.removeProperty("--dashboard-keyboard-inset");
+        };
+    }, []);
+}
+function DraggableBottomSheetFrame({ children, labelledBy, onClose, panelClassName = "", screenClassName = "", showSpacer = true, }: { children: ReactNode; labelledBy?: string; onClose: () => void; panelClassName?: string; screenClassName?: string; showSpacer?: boolean; }) {
+    const [offset, setOffset] = useState(0);
+    const [phase, setPhase] = useState<"open" | "dragging" | "settling" | "closing">("open");
+    const swipeRef = useRef<{ pointerId?: number; startX: number; startY: number; startedAt: number; dragging: boolean } | null>(null);
+    const sheetRef = useRef<HTMLElement | null>(null);
+    const closeTimerRef = useRef<number | null>(null);
+    useEffect(() => {
+        document.body.classList.add("client-bottom-sheet-lock");
+        return () => {
+            document.body.classList.remove("client-bottom-sheet-lock");
+        };
+    }, []);
+    const cleanupWindowListeners = () => {
+        window.removeEventListener("pointermove", handleWindowPointerMove);
+        window.removeEventListener("pointerup", handleWindowPointerUp);
+        window.removeEventListener("pointercancel", handleWindowPointerCancel);
+        window.removeEventListener("mousemove", handleWindowMouseMove);
+        window.removeEventListener("mouseup", handleWindowMouseUp);
+        window.removeEventListener("touchmove", handleWindowTouchMove);
+        window.removeEventListener("touchend", handleWindowTouchEnd);
+        window.removeEventListener("touchcancel", handleWindowTouchCancel);
+    };
+    const closeWithMotion = () => {
+        swipeRef.current = null;
+        cleanupWindowListeners();
+        if (closeTimerRef.current)
+            window.clearTimeout(closeTimerRef.current);
+        setPhase("closing");
+        closeTimerRef.current = window.setTimeout(() => {
+            setOffset(0);
+            setPhase("open");
+            closeTimerRef.current = null;
+            onClose();
+        }, 220);
+    };
+    const listenWindowGesture = () => {
+        cleanupWindowListeners();
+        window.addEventListener("pointermove", handleWindowPointerMove, { passive: false });
+        window.addEventListener("pointerup", handleWindowPointerUp);
+        window.addEventListener("pointercancel", handleWindowPointerCancel);
+        window.addEventListener("mousemove", handleWindowMouseMove, { passive: false });
+        window.addEventListener("mouseup", handleWindowMouseUp);
+        window.addEventListener("touchmove", handleWindowTouchMove, { passive: false });
+        window.addEventListener("touchend", handleWindowTouchEnd);
+        window.addEventListener("touchcancel", handleWindowTouchCancel);
+    };
+    useEffect(() => () => {
+        if (closeTimerRef.current)
+            window.clearTimeout(closeTimerRef.current);
+        cleanupWindowListeners();
+    }, []);
+    function isInteractiveGestureTarget(target: EventTarget | null) {
+        return target instanceof Element && Boolean(target.closest("input, textarea, select, button, a, [contenteditable='true']"));
+    }
+    function stopSheetPropagation(event: { stopPropagation: () => void }) {
+        event.stopPropagation();
+    }
+    function stopSheetTouchPropagation(event: TouchEvent<HTMLElement>) {
+        event.stopPropagation();
+        if (event.target === event.currentTarget)
+            event.preventDefault();
+    }
+    function beginSwipe(clientX: number, clientY: number, sheet: HTMLElement, pointerId?: number) {
+        swipeRef.current = { pointerId, startX: clientX, startY: clientY, startedAt: Date.now(), dragging: false };
+        sheetRef.current = sheet;
+        listenWindowGesture();
+    }
+    function moveSwipe(clientX: number, clientY: number, sheet: HTMLElement, cancelDefault: () => void) {
+        const swipe = swipeRef.current;
+        if (!swipe)
+            return;
+        const deltaX = clientX - swipe.startX;
+        const deltaY = clientY - swipe.startY;
+        if (!swipe.dragging && (deltaY < 10 || Math.abs(deltaY) < Math.abs(deltaX) * 1.25))
+            return;
+        if (deltaY <= 0)
+            return;
+        if (!swipe.dragging && sheet.scrollTop > 0)
+            return;
+        swipe.dragging = true;
+        cancelDefault();
+        setPhase("dragging");
+        const maxOffset = Math.max(window.innerHeight, sheet.getBoundingClientRect().height);
+        setOffset(Math.min(deltaY, maxOffset));
+    }
+    function finishSwipe(clientY: number, cancelDefault: () => void) {
+        const swipe = swipeRef.current;
+        if (!swipe)
+            return;
+        swipeRef.current = null;
+        cleanupWindowListeners();
+        const deltaY = clientY - swipe.startY;
+        const elapsed = Math.max(1, Date.now() - swipe.startedAt);
+        const velocity = deltaY / elapsed;
+        if (swipe.dragging)
+            cancelDefault();
+        if (deltaY > 92 || (deltaY > 52 && velocity > 0.45)) {
+            closeWithMotion();
+            return;
+        }
+        setPhase("settling");
+        setOffset(0);
+        window.setTimeout(() => {
+            setPhase((current) => current === "settling" ? "open" : current);
+        }, 180);
+    }
+    function cancelSwipe() {
+        swipeRef.current = null;
+        cleanupWindowListeners();
+        setPhase("settling");
+        setOffset(0);
+    }
+    function handleWindowPointerMove(event: globalThis.PointerEvent) {
+        const swipe = swipeRef.current;
+        const sheet = sheetRef.current;
+        if (!swipe || !sheet || swipe.pointerId !== event.pointerId)
+            return;
+        moveSwipe(event.clientX, event.clientY, sheet, () => { event.preventDefault(); event.stopPropagation(); });
+    }
+    function handleWindowPointerUp(event: globalThis.PointerEvent) {
+        const swipe = swipeRef.current;
+        if (!swipe || swipe.pointerId !== event.pointerId)
+            return;
+        finishSwipe(event.clientY, () => { event.preventDefault(); event.stopPropagation(); });
+    }
+    function handleWindowPointerCancel(event: globalThis.PointerEvent) {
+        const swipe = swipeRef.current;
+        if (!swipe || swipe.pointerId !== event.pointerId)
+            return;
+        cancelSwipe();
+    }
+    function handleWindowMouseMove(event: globalThis.MouseEvent) {
+        const swipe = swipeRef.current;
+        const sheet = sheetRef.current;
+        if (!swipe || !sheet || swipe.pointerId !== undefined)
+            return;
+        moveSwipe(event.clientX, event.clientY, sheet, () => { event.preventDefault(); event.stopPropagation(); });
+    }
+    function handleWindowMouseUp(event: globalThis.MouseEvent) {
+        const swipe = swipeRef.current;
+        if (!swipe || swipe.pointerId !== undefined)
+            return;
+        finishSwipe(event.clientY, () => { event.preventDefault(); event.stopPropagation(); });
+    }
+    function handleWindowTouchMove(event: globalThis.TouchEvent) {
+        const touch = event.touches[0];
+        const sheet = sheetRef.current;
+        if (!touch || !sheet)
+            return;
+        moveSwipe(touch.clientX, touch.clientY, sheet, () => { event.preventDefault(); event.stopPropagation(); });
+    }
+    function handleWindowTouchEnd(event: globalThis.TouchEvent) {
+        const touch = event.changedTouches[0];
+        if (!touch)
+            return;
+        finishSwipe(touch.clientY, () => { event.preventDefault(); event.stopPropagation(); });
+    }
+    function handleWindowTouchCancel() { cancelSwipe(); }
+    const panelStyle = phase === "open" && offset === 0 ? undefined : {
+        transform: phase === "closing" ? "translateY(100%)" : offset > 0 ? `translateY(${offset}px)` : "translateY(0)",
+        transition: phase === "dragging" ? "none" : "transform .22s cubic-bezier(.22, 1, .36, 1)",
+        animation: "none",
+        willChange: "transform",
+    } as CSSProperties;
+    const backdropOpacity = phase === "closing" ? 0 : Math.max(0.08, 0.36 - Math.min(offset, 260) / 260 * 0.22);
+    const screenStyle = {
+        background: `rgba(17, 27, 33, ${backdropOpacity.toFixed(3)})`,
+        transition: phase === "dragging" ? "none" : "background .22s ease-out",
+    } as CSSProperties;
+    return (<div className={`client-bottom-sheet-screen client-bottom-sheet-screen-open ${screenClassName}`} data-dashboard-swipe-ignore="true" role="dialog" aria-modal="true" aria-labelledby={labelledBy} style={screenStyle} onClick={closeWithMotion} onPointerDown={stopSheetPropagation} onPointerMove={stopSheetPropagation} onPointerUp={stopSheetPropagation} onTouchStart={stopSheetTouchPropagation} onTouchMove={stopSheetTouchPropagation} onTouchEnd={stopSheetPropagation}>
+        {showSpacer && <div className="client-bottom-sheet-spacer" aria-hidden="true"/>}
+        <section className={`client-bottom-sheet ${panelClassName}`} data-dashboard-swipe-ignore="true" style={panelStyle} onClick={(event) => event.stopPropagation()} onPointerDown={(event) => { event.stopPropagation(); if (event.pointerType === "touch" || isInteractiveGestureTarget(event.target)) return; beginSwipe(event.clientX, event.clientY, event.currentTarget, event.pointerId); event.currentTarget.setPointerCapture(event.pointerId); }} onPointerMove={(event) => { event.stopPropagation(); if (event.pointerType === "touch") return; const swipe = swipeRef.current; if (!swipe || swipe.pointerId !== event.pointerId) return; moveSwipe(event.clientX, event.clientY, event.currentTarget, () => { event.preventDefault(); }); }} onPointerUp={(event) => { event.stopPropagation(); if (event.pointerType === "touch") return; const swipe = swipeRef.current; if (!swipe || swipe.pointerId !== event.pointerId) return; event.currentTarget.releasePointerCapture(event.pointerId); finishSwipe(event.clientY, () => { event.preventDefault(); }); }} onPointerCancel={(event) => { event.stopPropagation(); if (event.pointerType === "touch") return; cancelSwipe(); }} onMouseDown={(event) => { event.stopPropagation(); if (event.button !== 0 || swipeRef.current?.pointerId !== undefined || isInteractiveGestureTarget(event.target)) return; beginSwipe(event.clientX, event.clientY, event.currentTarget); }} onMouseMove={(event) => { event.stopPropagation(); const swipe = swipeRef.current; if (!swipe || swipe.pointerId !== undefined) return; moveSwipe(event.clientX, event.clientY, event.currentTarget, () => { event.preventDefault(); }); }} onMouseUp={(event) => { event.stopPropagation(); const swipe = swipeRef.current; if (!swipe || swipe.pointerId !== undefined) return; finishSwipe(event.clientY, () => { event.preventDefault(); }); }} onTouchStart={(event) => { event.stopPropagation(); const touch = event.touches[0]; if (!touch || isInteractiveGestureTarget(event.target)) return; beginSwipe(touch.clientX, touch.clientY, event.currentTarget); }} onTouchMove={(event) => { event.stopPropagation(); const touch = event.touches[0]; if (!touch) return; moveSwipe(touch.clientX, touch.clientY, event.currentTarget, () => { event.preventDefault(); }); }} onTouchEnd={(event) => { event.stopPropagation(); const touch = event.changedTouches[0]; if (!touch) return; finishSwipe(touch.clientY, () => { event.preventDefault(); }); }} onTouchCancel={(event) => { event.stopPropagation(); cancelSwipe(); }}>
+            {children}
+        </section>
+    </div>);
+}
+export default function DashboardPage() { useMobileKeyboardViewportVars(); const router = useRouter(); const today = useMemo(() => new Date(), []); const dashboardSwipeStageRef = useRef<HTMLDivElement | null>(null); const dashboardSwipeStart = useRef<{
     x: number;
     y: number;
     time: number;
@@ -537,7 +740,7 @@ catch { /* Background refresh should stay quiet; the main data load still report
 } dashboardDragFrame.current = window.requestAnimationFrame(() => { const previewOffset = direction === "prev" ? -width + offsetX : width + offsetX; stage.style.setProperty("--dashboard-drag-offset", `${offsetX}px`); stage.style.setProperty("--dashboard-preview-offset", `${previewOffset}px`); dashboardDragFrame.current = null; }); }; const resetDashboardDrag = () => { dashboardDragRef.current = { target: null, offsetX: 0, width: 1, direction: null }; setDashboardDrag({ target: null, width: 1, direction: null }); updateDashboardDragStyles(0, 1, null); }; const lockClientFormNavigation = () => { clientFormNavigationLockUntil.current = Date.now() + 800; dashboardSwipeStart.current = null; resetDashboardDrag(); }; const shouldBlockNavigationFromClientForm = (next: Section) => section === "Клиенты" && next !== "Клиенты" && (clientFormOpen || Date.now() < clientFormNavigationLockUntil.current); const setClientFormOpenFromClients: React.Dispatch<React.SetStateAction<boolean>> = (value) => { const next = typeof value === "function" ? value(clientFormOpen) : value; if (!next && clientFormOpen)
     lockClientFormNavigation(); setClientFormOpen(next); }; const resolveNextSection = (value: React.SetStateAction<Section>) => (typeof value === "function" ? value(section) : value); const commitSectionNavigation = (next: Section, direction: "next" | "prev" | "idle") => { startTransition(() => { setDashboardTabDirection(next !== section ? direction : "idle"); setSection(next); }); }; const navigateSection: React.Dispatch<React.SetStateAction<Section>> = (value) => { const next = resolveNextSection(value); if (shouldBlockNavigationFromClientForm(next))
     return; commitSectionNavigation(next, "idle"); }; const navigateSectionWithSwipe = (value: React.SetStateAction<Section>, direction: "next" | "prev") => { const next = typeof value === "function" ? value(section) : value; if (shouldBlockNavigationFromClientForm(next))
-    return; commitSectionNavigation(next, direction); }; const handleDashboardTouchStart = (event: TouchEvent<HTMLElement>) => { if (selectedSettingsPanel || window.innerWidth >= 768 || event.touches.length !== 1) {
+    return; commitSectionNavigation(next, direction); }; const isBottomSheetOpen = () => typeof document !== "undefined" && Boolean(document.querySelector(".client-bottom-sheet-screen-open")); const handleDashboardTouchStart = (event: TouchEvent<HTMLElement>) => { if (selectedSettingsPanel || isBottomSheetOpen() || window.innerWidth >= 768 || event.touches.length !== 1) {
     dashboardSwipeStart.current = null;
     resetDashboardDrag();
     return;
@@ -548,7 +751,7 @@ catch { /* Background refresh should stay quiet; the main data load still report
 } if (target instanceof HTMLElement && target.closest(dashboardSwipeIgnoreSelector)) {
     dashboardSwipeStart.current = null;
     return;
-} const servicePage = section === nav[1] && target instanceof HTMLElement && Boolean(target.closest(".services-phone-section")); const serviceFilterButton = servicePage ? document.querySelector<HTMLButtonElement>(".services-filter-row button.is-active[data-service-status-filter]") : null; const serviceFilterEdge = serviceFilterButton?.dataset.serviceStatusFilter === "all" || serviceFilterButton?.dataset.serviceStatusFilter === "archive" ? serviceFilterButton.dataset.serviceStatusFilter : null; const touch = event.touches[0]; dashboardSwipeStart.current = { x: touch.clientX, y: touch.clientY, time: Date.now(), serviceFilterEdge, servicePage }; dashboardDragRef.current = { target: null, offsetX: 0, width: Math.max(1, window.innerWidth), direction: null }; setDashboardDrag({ target: null, width: Math.max(1, window.innerWidth), direction: null }); updateDashboardDragStyles(0, Math.max(1, window.innerWidth), null); }; const handleDashboardTouchMove = (event: TouchEvent<HTMLElement>) => { if (selectedSettingsPanel) {
+} const servicePage = section === nav[1] && target instanceof HTMLElement && Boolean(target.closest(".services-phone-section")); const serviceFilterButton = servicePage ? document.querySelector<HTMLButtonElement>(".services-filter-row button.is-active[data-service-status-filter]") : null; const serviceFilterEdge = serviceFilterButton?.dataset.serviceStatusFilter === "all" || serviceFilterButton?.dataset.serviceStatusFilter === "archive" ? serviceFilterButton.dataset.serviceStatusFilter : null; const touch = event.touches[0]; dashboardSwipeStart.current = { x: touch.clientX, y: touch.clientY, time: Date.now(), serviceFilterEdge, servicePage }; dashboardDragRef.current = { target: null, offsetX: 0, width: Math.max(1, window.innerWidth), direction: null }; setDashboardDrag({ target: null, width: Math.max(1, window.innerWidth), direction: null }); updateDashboardDragStyles(0, Math.max(1, window.innerWidth), null); }; const handleDashboardTouchMove = (event: TouchEvent<HTMLElement>) => { if (selectedSettingsPanel || isBottomSheetOpen()) {
     dashboardSwipeStart.current = null;
     resetDashboardDrag();
     return;
@@ -574,7 +777,7 @@ catch { /* Background refresh should stay quiet; the main data load still report
     dashboardSwipeStart.current = null;
     resetDashboardDrag();
     return;
-} const start = dashboardSwipeStart.current; const drag = dashboardDragRef.current; dashboardSwipeStart.current = null; resetDashboardDrag(); if (!start || window.innerWidth >= 768 || event.changedTouches.length !== 1)
+} const start = dashboardSwipeStart.current; const drag = dashboardDragRef.current; dashboardSwipeStart.current = null; resetDashboardDrag(); if (!start || isBottomSheetOpen() || window.innerWidth >= 768 || event.changedTouches.length !== 1)
     return; const touch = event.changedTouches[0]; const deltaX = touch.clientX - start.x; const deltaY = touch.clientY - start.y; const elapsed = Date.now() - start.time; const isHorizontalSwipe = Math.abs(deltaX) >= 56 && Math.abs(deltaX) > Math.abs(deltaY) * 1.4; const isNaturalSwipeSpeed = elapsed <= 650; if (start.servicePage) {
     const swipingToPreviousSection = deltaX > 0;
     const isAllowedEdgeSwipe = (swipingToPreviousSection && start.serviceFilterEdge === "all") || (!swipingToPreviousSection && start.serviceFilterEdge === "archive");
@@ -899,7 +1102,7 @@ function AppointmentCreateModalFixed({ addAppointment, appointmentForm, clients,
     setAppointmentForm: React.Dispatch<React.SetStateAction<typeof emptyAppointment>>;
     setShowAppointmentForm: React.Dispatch<React.SetStateAction<boolean>>;
 }) { if (!open)
-    return null; const close = () => setShowAppointmentForm(false); return (<div className="client-bottom-sheet-screen client-bottom-sheet-screen-open appointment-modal" onClick={close} role="dialog" aria-modal="true"> <div className="client-bottom-sheet appointment-modal-panel" onClick={(event) => event.stopPropagation()}> <form onSubmit={addAppointment} className="grid gap-3 md:grid-cols-2"> <div className="client-bottom-sheet-header md:col-span-2"> <div className="min-w-0"> <p className="text-conversationName text-textPrimary">Новая запись</p> <p className="mt-1 text-settingsRowDescription text-textSecondary">Заполните основные данные клиента.</p> </div> <button type="button" onClick={close} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-background text-textPrimary hover:bg-background" aria-label="Закрыть" title="Закрыть"> <CloseIcon /></button> </div> <TimeWheelPicker className="appointment-modal-time-wheel" label="Время" value={appointmentForm.time} onChange={(time) => setAppointmentForm((current) => ({ ...current, time }))}/> <ClientPicker className="md:col-span-2" clients={clients} valueName={appointmentForm.client} valuePhone={appointmentForm.phone} onSelect={(client) => setAppointmentForm((current) => ({ ...current, client: client.name, phone: client.phone }))}/> <input value={appointmentForm.client} onChange={(event) => setAppointmentForm((current) => ({ ...current, client: event.target.value }))} className="h-10 w-full rounded-lg border border-border px-3 text-settingsRowDescription" placeholder="Имя клиента"/> <input value={appointmentForm.phone} onChange={(event) => setAppointmentForm((current) => ({ ...current, phone: event.target.value }))} className="h-10 w-full rounded-lg border border-border px-3 text-settingsRowDescription" placeholder="Телефон"/> <ServicePicker className="md:col-span-2" services={services} value={appointmentForm.serviceIds.length ? appointmentForm.serviceIds : appointmentForm.serviceId ? [appointmentForm.serviceId] : []} onChange={(serviceIds) => setAppointmentForm((current) => ({ ...current, serviceId: serviceIds[0] || "", serviceIds }))}/> <div className="client-bottom-sheet-actions grid grid-cols-2 gap-2 md:col-span-2 md:flex md:flex-row"> <button type="submit" className="client-bottom-sheet-submit w-full rounded-lg bg-primary px-3 py-3 text-settingsRowTitle text-surface md:w-auto"> Готово</button> <button type="button" onClick={close} className="client-bottom-sheet-cancel w-full rounded-lg border border-border px-3 py-3 text-settingsRowTitle md:w-auto"> Не сейчас</button> </div> </form> </div> </div>); }
+    return null; const close = () => setShowAppointmentForm(false); return (<DraggableBottomSheetFrame screenClassName="appointment-modal" panelClassName="appointment-modal-panel" onClose={close}> <form onSubmit={addAppointment} className="grid gap-3 md:grid-cols-2"> <div className="client-bottom-sheet-header md:col-span-2"> <div className="min-w-0"> <p className="text-conversationName text-textPrimary">Новая запись</p> <p className="mt-1 text-settingsRowDescription text-textSecondary">Заполните основные данные клиента.</p> </div> <button type="button" onClick={close} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-background text-textPrimary hover:bg-background" aria-label="Закрыть" title="Закрыть"> <CloseIcon /></button> </div> <TimeWheelPicker className="appointment-modal-time-wheel" label="Время" value={appointmentForm.time} onChange={(time) => setAppointmentForm((current) => ({ ...current, time }))}/> <ClientPicker className="md:col-span-2" clients={clients} valueName={appointmentForm.client} valuePhone={appointmentForm.phone} onSelect={(client) => setAppointmentForm((current) => ({ ...current, client: client.name, phone: client.phone }))}/> <input value={appointmentForm.client} onChange={(event) => setAppointmentForm((current) => ({ ...current, client: event.target.value }))} className="h-10 w-full rounded-lg border border-border px-3 text-settingsRowDescription" placeholder="Имя клиента"/> <input value={appointmentForm.phone} onChange={(event) => setAppointmentForm((current) => ({ ...current, phone: event.target.value }))} className="h-10 w-full rounded-lg border border-border px-3 text-settingsRowDescription" placeholder="Телефон"/> <ServicePicker className="md:col-span-2" services={services} value={appointmentForm.serviceIds.length ? appointmentForm.serviceIds : appointmentForm.serviceId ? [appointmentForm.serviceId] : []} onChange={(serviceIds) => setAppointmentForm((current) => ({ ...current, serviceId: serviceIds[0] || "", serviceIds }))}/> <div className="client-bottom-sheet-actions grid grid-cols-2 gap-2 md:col-span-2 md:flex md:flex-row"> <button type="submit" className="client-bottom-sheet-submit w-full rounded-lg bg-primary px-3 py-3 text-settingsRowTitle text-surface md:w-auto"> Готово</button> <button type="button" onClick={close} className="client-bottom-sheet-cancel w-full rounded-lg border border-border px-3 py-3 text-settingsRowTitle md:w-auto"> Не сейчас</button> </div> </form> </DraggableBottomSheetFrame>); }
 function ServicePicker({ className = "", onChange, services, value, }: {
     className?: string;
     onChange: (serviceIds: string[]) => void;
@@ -1272,7 +1475,7 @@ function ScheduleSection(props: {
 }) {
     const [exceptionsOpen, setExceptionsOpen] = useState(false);
     const [bookingWindowOpen, setBookingWindowOpen] = useState(false);
-    const [bookingWindowDraft, setBookingWindowDraft] = useState(() => props.bookingPageSettings.maxBookingDaysAhead || 14);
+    const [bookingWindowDraft, setBookingWindowDraft] = useState(() => String(props.bookingPageSettings.maxBookingDaysAhead || 14));
     const [deleteBlockedTimeTarget, setDeleteBlockedTimeTarget] = useState<BlockedTime | null>(null);
     const [selectedScheduleMode, setSelectedScheduleMode] = useState<ScheduleMode>(() => getStoredScheduleMode(props.weeklySchedule));
     const savedIndividualPlan = getStoredIndividualPlan(props.weeklySchedule);
@@ -1280,6 +1483,15 @@ function ScheduleSection(props: {
     const [customWorkDays, setCustomWorkDays] = useState(savedIndividualPlan?.customWorkDays || 2);
     const [customOffDays, setCustomOffDays] = useState(savedIndividualPlan?.customOffDays || 2);
     const [individualStartDate, setIndividualStartDate] = useState(() => savedIndividualPlan?.startDate || formatDateKey(new Date()));
+    const getIndividualScheduleDraft = () => {
+        const cycleSource = scheduleDays.map((day) => props.weeklySchedule[String(day.index)]).find(Boolean);
+        const enabledSource = scheduleDays.map((day) => props.weeklySchedule[String(day.index)]).find((value) => value?.enabled);
+        const source = withSyncedBreakFields({ ...(cycleSource || enabledSource || defaultScheduleDayRule), enabled: true, start: (cycleSource || enabledSource)?.start || props.workStart || "09:00", end: (cycleSource || enabledSource)?.end || props.workEnd || "18:00" } as DaySchedule);
+        return source;
+    };
+    const [individualWorkSchedule, setIndividualWorkSchedule] = useState<DaySchedule>(() => getIndividualScheduleDraft());
+    const [individualWorkHoursOpen, setIndividualWorkHoursOpen] = useState(false);
+    const [individualWorkDraft, setIndividualWorkDraft] = useState<DaySchedule>(() => getIndividualScheduleDraft());
     const individualEndDate = formatDateKey(addDays(parseDateKey(individualStartDate), 90));
     const individualPlan = useMemo<SchedulePlan>(() => ({
         mode: "cycle",
@@ -1289,21 +1501,44 @@ function ScheduleSection(props: {
         cyclePreset,
         customWorkDays,
         customOffDays,
-        dayRule: { ...defaultScheduleDayRule, start: props.workStart || "09:00", end: props.workEnd || "18:00" },
+        dayRule: { ...defaultScheduleDayRule, ...individualWorkSchedule },
         dateOverrides: {},
-    }), [cyclePreset, customOffDays, customWorkDays, individualEndDate, individualStartDate, props.workEnd, props.workStart]);
+    }), [cyclePreset, customOffDays, customWorkDays, individualEndDate, individualStartDate, individualWorkSchedule]);
     const individualCalendarMonths = useMemo(() => buildScheduleMonths(individualPlan, 3), [individualPlan]);
     const activeWeekdayIndex = Number(props.openWeekdayEditor ?? 1);
     const activeWeekday = scheduleDays.find((day) => day.index === activeWeekdayIndex) || scheduleDays[0];
     const activeWeekdayValue = props.weeklySchedule[String(activeWeekday.index)] || defaultWeeklySchedule[String(activeWeekday.index)];
     const activeWeekdayBreaks = getDayBreaks(activeWeekdayValue);
+    const individualWorkBreaks = getDayBreaks(individualWorkSchedule);
+    const individualWorkDraftBreaks = getDayBreaks(individualWorkDraft);
 
     useEffect(() => {
         setSelectedScheduleMode(getStoredScheduleMode(props.weeklySchedule));
     }, [props.weeklySchedule]);
     useEffect(() => {
-        setBookingWindowDraft(props.bookingPageSettings.maxBookingDaysAhead || 14);
+        if (props.schedulePanel !== "individual") {
+            setIndividualWorkSchedule(getIndividualScheduleDraft());
+        }
+    }, [props.schedulePanel, props.weeklySchedule, props.workEnd, props.workStart]);
+    useEffect(() => {
+        setBookingWindowDraft(String(props.bookingPageSettings.maxBookingDaysAhead || 14));
     }, [props.bookingPageSettings.maxBookingDaysAhead]);
+    const normalizeBookingWindowDays = (value: string | number) => Math.min(365, Math.max(1, Math.round(Number(value)) || 1));
+    const bookingWindowDraftNumber = bookingWindowDraft.trim() ? normalizeBookingWindowDays(bookingWindowDraft) : null;
+    const updateBookingWindowDraft = (value: string) => {
+        const digits = value.replace(/\D/g, "");
+        if (!digits) {
+            setBookingWindowDraft("");
+            return;
+        }
+        setBookingWindowDraft(String(Math.min(365, Number(digits))));
+    };
+    const openBookingWindow = (event: MouseEvent<HTMLButtonElement>) => {
+        event.preventDefault();
+        event.stopPropagation();
+        setBookingWindowDraft(String(props.bookingPageSettings.maxBookingDaysAhead || 14));
+        window.setTimeout(() => setBookingWindowOpen(true), 0);
+    };
 
     const updateDay = (dayIndex: number, patch: Partial<DaySchedule>) => {
         props.setWeeklySchedule((current) => ({
@@ -1323,6 +1558,35 @@ function ScheduleSection(props: {
         const nextBreaks = getDayBreaks(value).filter((item) => item.id !== breakId);
         updateDay(dayIndex, { breaks: nextBreaks, breakEnabled: nextBreaks.length > 0, breakStart: nextBreaks[0]?.start || "13:00", breakEnd: nextBreaks[0]?.end || "14:00" });
     };
+    const updateIndividualWorkDraft = (patch: Partial<DaySchedule>) => {
+        setIndividualWorkDraft((current) => withSyncedBreakFields({ ...current, ...patch }));
+    };
+    const updateIndividualBreak = (breakId: string, patch: Partial<BreakPeriod>) => {
+        setIndividualWorkDraft((current) => {
+            const nextBreaks = getDayBreaks(current).map((item) => (item.id === breakId ? { ...item, ...patch } : item));
+            return withSyncedBreakFields({ ...current, breaks: nextBreaks, breakEnabled: nextBreaks.length > 0, breakStart: nextBreaks[0]?.start || current.breakStart, breakEnd: nextBreaks[0]?.end || current.breakEnd });
+        });
+    };
+    const addIndividualBreak = () => {
+        setIndividualWorkDraft((current) => {
+            const nextBreaks = [...getDayBreaks(current), createBreakPeriod(getDayBreaks(current).length)];
+            return withSyncedBreakFields({ ...current, breaks: nextBreaks, breakEnabled: true, breakStart: nextBreaks[0].start, breakEnd: nextBreaks[0].end });
+        });
+    };
+    const removeIndividualBreak = (breakId: string) => {
+        setIndividualWorkDraft((current) => {
+            const nextBreaks = getDayBreaks(current).filter((item) => item.id !== breakId);
+            return withSyncedBreakFields({ ...current, breaks: nextBreaks, breakEnabled: nextBreaks.length > 0, breakStart: nextBreaks[0]?.start || "13:00", breakEnd: nextBreaks[0]?.end || "14:00" });
+        });
+    };
+    const openIndividualWorkHours = () => {
+        setIndividualWorkDraft(withSyncedBreakFields(individualWorkSchedule));
+        setIndividualWorkHoursOpen(true);
+    };
+    const saveIndividualWorkHours = () => {
+        setIndividualWorkSchedule(withSyncedBreakFields(individualWorkDraft));
+        setIndividualWorkHoursOpen(false);
+    };
     const saveWeekdaySchedule = () => {
         props.saveSchedule({ scheduleMode: "weekdays" });
         setSelectedScheduleMode("weekdays");
@@ -1331,14 +1595,20 @@ function ScheduleSection(props: {
     };
     const saveIndividualSchedule = () => {
         const storedPlan: StoredIndividualSchedulePlan = { startDate: individualStartDate, endDate: individualEndDate, cyclePreset, customWorkDays, customOffDays };
-        props.saveSchedule({ scheduleMode: "cycle", individualPlan: storedPlan });
+        const normalizedIndividualSchedule = withSyncedBreakFields(individualWorkSchedule);
+        const individualWeeklySchedule = scheduleDays.reduce<WeeklySchedule>((schedule, day) => {
+            const current = props.weeklySchedule[String(day.index)] || defaultWeeklySchedule[String(day.index)];
+            schedule[String(day.index)] = withSyncedBreakFields({ ...current, enabled: true, start: normalizedIndividualSchedule.start, end: normalizedIndividualSchedule.end, breakEnabled: normalizedIndividualSchedule.breakEnabled, breakStart: normalizedIndividualSchedule.breakStart, breakEnd: normalizedIndividualSchedule.breakEnd, breaks: normalizedIndividualSchedule.breaks || [] });
+            return schedule;
+        }, {});
+        props.saveSchedule({ weeklySchedule: individualWeeklySchedule, scheduleMode: "cycle", individualPlan: storedPlan });
         setSelectedScheduleMode("cycle");
         props.setSchedulePanel(null);
     };
-    const saveBookingWindow = (days: number) => {
-        const normalizedDays = Math.min(365, Math.max(1, Math.round(days) || 1));
+    const saveBookingWindow = (days: string | number) => {
+        const normalizedDays = normalizeBookingWindowDays(days);
         const next = { ...props.bookingPageSettings, maxBookingDaysAhead: normalizedDays };
-        setBookingWindowDraft(normalizedDays);
+        setBookingWindowDraft(String(normalizedDays));
         props.setBookingPageSettings(next);
         void props.saveBookingPageSettings(next);
     };
@@ -1374,12 +1644,20 @@ function ScheduleSection(props: {
             </div>
         </div>)}
 
-        {props.schedulePanel === "individual" && (<div className="individual-schedule-screen fixed inset-0 z-50 overflow-y-auto bg-surface">
-            <div className="individual-schedule-content w-full bg-surface px-3 pb-[calc(env(safe-area-inset-bottom)+5.75rem)] pt-[calc(env(safe-area-inset-top)+0.25rem)] md:px-8 md:pb-28 md:pt-4">
-                <div className="individual-schedule-header grid grid-cols-[2.5rem_1fr] items-start gap-2"><button type="button" onClick={() => props.setSchedulePanel(null)} className="individual-schedule-back flex h-10 w-10 min-h-0 items-center justify-center rounded-full bg-surface text-textPrimary" aria-label="Назад" title="Назад"><BackArrowIcon className="h-6 w-6"/></button><div className="min-w-0"><h2 className="text-navigationTitle text-textPrimary">Индивидуальный график</h2></div></div>
-                <article className="individual-schedule-card mt-7 space-y-4"><div className="individual-preset-list grid gap-2">{[["all", "Все дни"], ["weekdays", "Будни"], ["odd", "Нечетные"], ["even", "Четные"], ["custom", "Своя схема"]].map(([value, label]) => (<button key={value} type="button" onClick={() => setCyclePreset(value as CyclePreset)} className={`individual-preset-button ${cyclePreset === value ? "individual-preset-button-active" : ""}`}>{label}</button>))}</div><section className="individual-custom-schedule grid gap-4"><div className="grid gap-2 rounded-2xl bg-background p-3 md:grid-cols-2"><NumberField label="Рабочих дней" value={customWorkDays} onFocus={() => setCyclePreset("custom")} onChange={setCustomWorkDays}/><NumberField label="Нерабочих дней" value={customOffDays} onFocus={() => setCyclePreset("custom")} onChange={setCustomOffDays}/><p className="text-settingsRowDescription text-textSecondary md:col-span-2">Схема: {customWorkDays} рабочих / {customOffDays} выходных. Нажмите на дату в календаре, чтобы сделать ее первым рабочим днем.</p></div>{cyclePreset === "custom" && <p className="individual-start-date-hint text-settingsRowTitle text-textPrimary">Нажмите на дату с которой начать отчёт</p>}<div className="individual-calendar-grid grid gap-3 xl:grid-cols-3">{individualCalendarMonths.map((month) => (<section key={month.key} className="individual-calendar-month rounded-2xl bg-background p-3"><div className="mb-2 flex items-center justify-between gap-2"><h4 className="text-conversationName capitalize text-textPrimary">{month.title}</h4><span className="text-messageMetadata text-textSecondary">{month.workingDays} / {month.totalDays}</span></div><div className="grid grid-cols-7 gap-1 text-center text-messageMetadata text-textSecondary">{weekDays.map((day) => <span key={day}>{day}</span>)}</div><div className="mt-1 grid grid-cols-7 gap-1">{month.cells.map((cell) => { const isStart = cyclePreset === "custom" && cell.date === individualStartDate; return (<button key={cell.date} type="button" onClick={() => setIndividualStartDate(cell.date)} className={`individual-calendar-day ${cell.rule.enabled ? "individual-calendar-day-work" : ""} ${isStart ? "individual-calendar-day-start" : ""} ${cell.inMonth ? "" : "individual-calendar-day-muted"}`} aria-pressed={isStart}><span>{cell.day}</span></button>); })}</div></section>))}</div></section></article>
-            </div>
-            <div className="individual-schedule-footer fixed inset-x-0 bottom-0 z-[60] bg-surface px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 md:px-8"><button type="button" onClick={() => props.setSchedulePanel(null)} className="individual-schedule-footer-cancel">Отмена</button><button type="button" onClick={saveIndividualSchedule} className="flex h-12 w-full items-center justify-center rounded-xl bg-primary px-4 text-conversationName leading-none text-surface">Сохранить и использовать этот график</button></div>
+        {props.schedulePanel === "individual" && (<div className={`individual-schedule-screen fixed inset-0 z-50 overflow-y-auto bg-surface ${individualWorkHoursOpen ? "individual-work-hours-screen weekday-booksy" : ""}`}>
+            {individualWorkHoursOpen ? (<>
+                <div className="individual-schedule-content w-full bg-surface px-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-[calc(env(safe-area-inset-top)+0.25rem)] md:px-8 md:pb-8 md:pt-4">
+                    <div className="individual-schedule-header grid grid-cols-[2.5rem_1fr] items-start gap-2"><button type="button" onClick={() => setIndividualWorkHoursOpen(false)} className="individual-schedule-back flex h-10 w-10 min-h-0 items-center justify-center rounded-full bg-surface text-textPrimary" aria-label="Назад" title="Назад"><BackArrowIcon className="h-6 w-6"/></button><div className="min-w-0"><h2 className="text-navigationTitle text-textPrimary">Установить часы работы</h2><p className="mt-1 text-settingsRowDescription text-textSecondary">Эти часы и перерывы будут применяться ко всем рабочим дням индивидуального графика.</p></div></div>
+                    <article className="individual-schedule-card mt-7 space-y-4"><section className="weekday-booksy-time"><TimeRangeWheelPicker className="weekday-booksy-wheel" start={individualWorkDraft.start} end={individualWorkDraft.end} startLabel="" endLabel="" onStartChange={(start) => updateIndividualWorkDraft({ start })} onEndChange={(end) => updateIndividualWorkDraft({ end })}/></section><section className="weekday-booksy-breaks"><h2>Перерывы</h2><div className="weekday-booksy-break-list">{individualWorkDraftBreaks.map((item) => (<div key={item.id} className="weekday-booksy-break-row weekday-booksy-break-row-editing"><TimeRangeWheelPicker className="weekday-booksy-break-wheel" start={item.start} end={item.end} startLabel="" endLabel="" onStartChange={(start) => updateIndividualBreak(item.id, { start })} onEndChange={(end) => updateIndividualBreak(item.id, { end })}/><button type="button" onClick={() => removeIndividualBreak(item.id)} className="weekday-booksy-break-cancel">Удалить</button></div>))}<button type="button" onClick={addIndividualBreak} className="weekday-booksy-add-break"><span aria-hidden="true">+</span><strong>Добавить перерыв</strong></button></div></section></article>
+                    <div className="individual-work-hours-footer mt-3 grid gap-2"><button type="button" onClick={() => setIndividualWorkHoursOpen(false)} className="individual-schedule-footer-cancel">Отмена</button><button type="button" onClick={saveIndividualWorkHours} className="flex h-12 w-full items-center justify-center rounded-xl bg-primary px-4 text-conversationName leading-none text-surface">Сохранить</button></div>
+                </div>
+            </>) : (<>
+                <div className="individual-schedule-content w-full bg-surface px-3 pb-[calc(env(safe-area-inset-bottom)+5.75rem)] pt-[calc(env(safe-area-inset-top)+0.25rem)] md:px-8 md:pb-28 md:pt-4">
+                    <div className="individual-schedule-header grid grid-cols-[2.5rem_1fr] items-start gap-2"><button type="button" onClick={() => props.setSchedulePanel(null)} className="individual-schedule-back flex h-10 w-10 min-h-0 items-center justify-center rounded-full bg-surface text-textPrimary" aria-label="Назад" title="Назад"><BackArrowIcon className="h-6 w-6"/></button><div className="min-w-0"><h2 className="text-navigationTitle text-textPrimary">Индивидуальный график</h2></div></div>
+                    <article className="individual-schedule-card mt-7 space-y-4"><div className="individual-preset-list grid gap-2">{[["all", "Все дни"], ["weekdays", "Будни"], ["odd", "Нечетные"], ["even", "Четные"], ["custom", "Своя схема"]].map(([value, label]) => (<button key={value} type="button" onClick={() => setCyclePreset(value as CyclePreset)} className={`individual-preset-button ${cyclePreset === value ? "individual-preset-button-active" : ""}`}>{label}</button>))}</div><button type="button" onClick={openIndividualWorkHours} className="schedule-menu-row saas-card flex w-full items-center justify-between gap-3 p-3 text-left md:p-4"><span className="settings-menu-copy min-w-0 flex-1 text-left"><span className="schedule-title-settings-copy settings-menu-title-copy block text-textPrimary" style={settingsMenuTitleStyle}>Установить часы работы</span><span className="schedule-subtitle-settings-copy settings-menu-subtitle-copy block text-textSecondary">{individualWorkSchedule.start} - {individualWorkSchedule.end}{individualWorkBreaks.length ? ` · перерывов: ${individualWorkBreaks.length}` : " · без перерывов"}</span></span><CaretRight className="settings-menu-chevron h-5 w-5 shrink-0 text-textDisabled" weight="bold" aria-hidden="true"/></button><section className="individual-custom-schedule grid gap-4"><div className="grid gap-2 rounded-2xl bg-background p-3 md:grid-cols-2"><NumberField label="Рабочих дней" value={customWorkDays} onFocus={() => setCyclePreset("custom")} onChange={setCustomWorkDays}/><NumberField label="Нерабочих дней" value={customOffDays} onFocus={() => setCyclePreset("custom")} onChange={setCustomOffDays}/><p className="text-settingsRowDescription text-textSecondary md:col-span-2">Схема: {customWorkDays} рабочих / {customOffDays} выходных. Нажмите на дату в календаре, чтобы сделать ее первым рабочим днем.</p></div>{cyclePreset === "custom" && <p className="individual-start-date-hint text-settingsRowTitle text-textPrimary">Нажмите на дату с которой начать отчёт</p>}<div className="individual-calendar-grid grid gap-3 xl:grid-cols-3">{individualCalendarMonths.map((month) => (<section key={month.key} className="individual-calendar-month rounded-2xl bg-background p-3"><div className="mb-2 flex items-center justify-between gap-2"><h4 className="text-conversationName capitalize text-textPrimary">{month.title}</h4><span className="text-messageMetadata text-textSecondary">{month.workingDays} / {month.totalDays}</span></div><div className="grid grid-cols-7 gap-1 text-center text-messageMetadata text-textSecondary">{weekDays.map((day) => <span key={day}>{day}</span>)}</div><div className="mt-1 grid grid-cols-7 gap-1">{month.cells.map((cell) => { const isStart = cyclePreset === "custom" && cell.date === individualStartDate; return (<button key={cell.date} type="button" onClick={() => setIndividualStartDate(cell.date)} className={`individual-calendar-day ${cell.rule.enabled ? "individual-calendar-day-work" : ""} ${isStart ? "individual-calendar-day-start" : ""} ${cell.inMonth ? "" : "individual-calendar-day-muted"}`} aria-pressed={isStart}><span>{cell.day}</span></button>); })}</div></section>))}</div></section></article>
+                </div>
+                <div className="individual-schedule-footer fixed inset-x-0 bottom-0 z-[60] bg-surface px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 md:px-8"><button type="button" onClick={() => props.setSchedulePanel(null)} className="individual-schedule-footer-cancel">Отмена</button><button type="button" onClick={saveIndividualSchedule} className="flex h-12 w-full items-center justify-center rounded-xl bg-primary px-4 text-conversationName leading-none text-surface">Сохранить и использовать этот график</button></div>
+            </>)}
         </div>)}
 
         <div className="schedule-secondary-spacer" aria-hidden="true"/>
@@ -1387,13 +1665,13 @@ function ScheduleSection(props: {
             <button type="button" onClick={() => setExceptionsOpen(true)} className="schedule-menu-row saas-card flex w-full items-center justify-between p-3 text-left md:p-4"><span className="settings-menu-icon settings-menu-icon-exceptions"><SettingsGlyph name="exceptions"/></span><span className="settings-menu-copy min-w-0 flex-1 text-left"><span className="schedule-title-settings-copy settings-menu-title-copy block text-textPrimary" style={settingsMenuTitleStyle}>Исключения графика</span><span className="schedule-subtitle-settings-copy settings-menu-subtitle-copy block text-textSecondary">Отпуск, выходной, личные часы или разовый перерыв.</span></span><span className="schedule-block-count rounded-full bg-background px-3 py-1 text-settingsRowDescription text-textSecondary">{props.blockedTimes.length} блок.</span><CaretRight className="settings-menu-chevron h-5 w-5 shrink-0 text-textDisabled" weight="bold" aria-hidden="true"/></button>
             <button type="button" role="switch" aria-checked={props.autoTimeSnap} onClick={() => { props.setAutoTimeSnap((value) => !value); props.saveSchedule({ autoTimeSnap: !props.autoTimeSnap }); }} className="schedule-menu-row schedule-toggle-row saas-card flex w-full items-center justify-between gap-3 p-3 text-left transition md:p-4"><span className="settings-menu-icon settings-menu-icon-time-snap"><SettingsGlyph name="time-snap"/></span><span className="settings-menu-copy min-w-0 flex-1 text-left"><span className="schedule-title-settings-copy settings-menu-title-copy block text-textPrimary" style={settingsMenuTitleStyle}>Автоприлипание времени</span><span className="schedule-subtitle-settings-copy settings-menu-subtitle-copy block text-textSecondary">Клиенты видят свободные слоты дня</span></span><SettingsSwitch checked={props.autoTimeSnap}/></button>
             <button type="button" onClick={() => props.setBookingEnabled((value) => !value)} className="schedule-menu-row schedule-toggle-row saas-card flex w-full items-center justify-between gap-3 p-3 text-left transition md:p-4"><span className="settings-menu-icon settings-menu-icon-online"><SettingsGlyph name="online"/></span><span className="settings-menu-copy min-w-0 flex-1 text-left"><span className="schedule-title-settings-copy settings-menu-title-copy block text-textPrimary" style={settingsMenuTitleStyle}>Онлайн-запись</span><span className="schedule-subtitle-settings-copy settings-menu-subtitle-copy block text-textSecondary">{props.bookingEnabled ? "Клиенты могут записываться сами" : "Запись с клиентской страницы закрыта"}</span></span><SettingsSwitch checked={props.bookingEnabled}/></button>
-            <button type="button" onClick={() => { setBookingWindowDraft(props.bookingPageSettings.maxBookingDaysAhead || 14); setBookingWindowOpen(true); }} className="schedule-menu-row saas-card flex w-full items-center justify-between gap-3 p-3 text-left md:p-4"><span className="settings-menu-icon settings-menu-icon-calendar"><SettingsGlyph name="calendar"/></span><span className="settings-menu-copy min-w-0 flex-1 text-left"><span className="schedule-title-settings-copy settings-menu-title-copy block text-textPrimary" style={settingsMenuTitleStyle}>Запись на дни вперёд</span><span className="schedule-subtitle-settings-copy settings-menu-subtitle-copy block text-textSecondary">Клиенты могут выбрать дату на {props.bookingPageSettings.maxBookingDaysAhead || 14} дн. вперёд</span></span><CaretRight className="settings-menu-chevron h-5 w-5 shrink-0 text-textDisabled" weight="bold" aria-hidden="true"/></button>
+            <button type="button" onClick={openBookingWindow} className="schedule-menu-row saas-card flex w-full items-center justify-between gap-3 p-3 text-left md:p-4" aria-haspopup="dialog" aria-expanded={bookingWindowOpen}><span className="settings-menu-icon settings-menu-icon-calendar"><SettingsGlyph name="calendar"/></span><span className="settings-menu-copy min-w-0 flex-1 text-left"><span className="schedule-title-settings-copy settings-menu-title-copy block text-textPrimary" style={settingsMenuTitleStyle}>Запись на дни вперёд</span><span className="schedule-subtitle-settings-copy settings-menu-subtitle-copy block text-textSecondary">Клиенты могут выбрать дату на {props.bookingPageSettings.maxBookingDaysAhead || 14} дн. вперёд</span></span><CaretRight className="settings-menu-chevron h-5 w-5 shrink-0 text-textDisabled" weight="bold" aria-hidden="true"/></button>
         </section>
         {bookingWindowOpen && typeof document !== "undefined" && createPortal((
             <div className="master-workspace">
-                <div className="client-bottom-sheet-screen client-bottom-sheet-screen-open booking-window-bottom-sheet-screen" data-dashboard-swipe-ignore="true" role="dialog" aria-modal="true" aria-labelledby="booking-window-title" onClick={() => setBookingWindowOpen(false)} onPointerDown={(event) => event.stopPropagation()} onPointerMove={(event) => event.stopPropagation()} onPointerUp={(event) => event.stopPropagation()} onTouchStart={(event) => event.stopPropagation()} onTouchMove={(event) => event.stopPropagation()} onTouchEnd={(event) => event.stopPropagation()}>
+                <div className="client-bottom-sheet-screen client-bottom-sheet-screen-open address-bottom-sheet-screen booking-window-bottom-sheet-screen" data-dashboard-swipe-ignore="true" role="dialog" aria-modal="true" aria-labelledby="booking-window-title" onClick={() => setBookingWindowOpen(false)} onPointerDown={(event) => event.stopPropagation()} onPointerMove={(event) => event.stopPropagation()} onPointerUp={(event) => event.stopPropagation()} onTouchStart={(event) => { event.stopPropagation(); if (event.target === event.currentTarget) event.preventDefault(); }} onTouchMove={(event) => { event.stopPropagation(); if (event.target === event.currentTarget) event.preventDefault(); }} onTouchEnd={(event) => event.stopPropagation()}>
                     <div className="client-bottom-sheet-spacer" aria-hidden="true"/>
-                    <section className="client-bottom-sheet booking-window-bottom-sheet" data-dashboard-swipe-ignore="true" onClick={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()} onPointerMove={(event) => event.stopPropagation()} onPointerUp={(event) => event.stopPropagation()} onTouchStart={(event) => event.stopPropagation()} onTouchMove={(event) => event.stopPropagation()} onTouchEnd={(event) => event.stopPropagation()}>
+                    <section className="client-bottom-sheet address-bottom-sheet booking-window-bottom-sheet" data-dashboard-swipe-ignore="true" onClick={(event) => event.stopPropagation()}>
                         <div className="grid gap-3">
                             <header className="client-bottom-sheet-header">
                                 <div className="min-w-0">
@@ -1405,20 +1683,20 @@ function ScheduleSection(props: {
                                 </button>
                             </header>
                             <div className="booking-window-presets grid grid-cols-2 gap-2">
-                                {[7, 14, 30, 60].map((days) => (<button key={days} type="button" onClick={() => setBookingWindowDraft(days)} className={`booking-window-step rounded-xl px-4 py-3 text-buttonLabel ${bookingWindowDraft === days ? "individual-preset-button-active" : ""}`} aria-pressed={bookingWindowDraft === days}>{days} дн.</button>))}
+                                {[7, 14, 30, 60].map((days) => (<button key={days} type="button" onClick={() => setBookingWindowDraft(String(days))} className={`booking-window-step rounded-xl px-4 py-3 text-buttonLabel ${bookingWindowDraftNumber === days ? "individual-preset-button-active" : ""}`} aria-pressed={bookingWindowDraftNumber === days}>{days} дн.</button>))}
                             </div>
-                            <label className="booking-window-field block space-y-2 rounded-2xl bg-background p-3">
+                            <label className="booking-window-field block space-y-2">
                                 <span className="text-settingsRowTitle text-textPrimary">Свое значение</span>
-                                <input type="number" min="1" max="365" inputMode="numeric" value={bookingWindowDraft} onChange={(event) => setBookingWindowDraft(Math.min(365, Math.max(1, Number(event.target.value) || 1)))} className="settings-input w-full px-3.5 py-2 outline-none transition" />
+                                <input type="number" min="1" max="365" inputMode="numeric" value={bookingWindowDraft} onChange={(event) => updateBookingWindowDraft(event.target.value)} onBlur={() => bookingWindowDraftNumber === null ? undefined : setBookingWindowDraft(String(bookingWindowDraftNumber))} className="settings-input min-h-11 w-full rounded-xl border border-border bg-surface px-3.5 py-2 text-messageInput text-textPrimary outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10" />
                                 <span className="block text-settingsRowDescription text-textSecondary">Можно указать от 1 до 365 дней.</span>
                             </label>
-                            <div className="rounded-2xl bg-background p-4 text-center">
+                            <div className="booking-window-summary rounded-xl border border-border bg-surface p-3.5 text-center">
                                 <p className="text-settingsRowDescription text-textSecondary">Сейчас клиенты видят даты на</p>
-                                <strong className="mt-1 block text-navigationTitle text-textPrimary">{bookingWindowDraft} дн. вперёд</strong>
+                                <strong className="mt-1 block text-navigationTitle text-textPrimary">{bookingWindowDraftNumber === null ? "укажите значение" : `${bookingWindowDraftNumber} дн. вперёд`}</strong>
                             </div>
                             <footer className="client-bottom-sheet-actions grid gap-2">
                                 <button type="button" onClick={() => setBookingWindowOpen(false)} className="address-form-cancel w-full rounded-xl px-4 py-3 text-buttonLabel shadow-none">Отмена</button>
-                                <button type="button" onClick={() => { saveBookingWindow(bookingWindowDraft); setBookingWindowOpen(false); }} className="address-form-submit w-full rounded-xl px-4 py-3 text-buttonLabel">
+                                <button type="button" disabled={bookingWindowDraftNumber === null} onClick={() => { if (bookingWindowDraftNumber === null) return; saveBookingWindow(bookingWindowDraftNumber); setBookingWindowOpen(false); }} className="address-form-submit w-full rounded-xl px-4 py-3 text-buttonLabel">
                                     Сохранить
                                 </button>
                             </footer>
@@ -1445,7 +1723,7 @@ function ScheduleExceptionEditor({ addBlockedTime, blockForm, blockedTimes, setB
 } while (cells.length % 7 !== 0) {
     cells.push({ date: addDays(lastDay, cells.length - leadingDays - lastDay.getDate() + 1), inMonth: false });
 } return cells; }, [visibleMonth]); const blockedDates = useMemo(() => { const dates = new Map<string, number>(); blockedTimes.forEach((item) => dates.set(item.date, (dates.get(item.date) || 0) + 1)); return dates; }, [blockedTimes]); const selectDate = (date: Date) => { setBlockForm((current) => ({ ...current, date: formatDateKey(date) })); }; const changeVisibleMonth = (offset: number) => { setVisibleMonth((current) => new Date(current.getFullYear(), current.getMonth() + offset, 1)); }; const submitBlockedTime = (event: React.FormEvent) => { if (blockForm.start < blockForm.end)
-    setTimePickerOpen(false); addBlockedTime(event); }; return (<form onSubmit={submitBlockedTime} className="schedule-exception-editor grid gap-4"> <section className="schedule-exception-calendar rounded-2xl bg-background p-3"> <div className="mb-3 grid grid-cols-[44px_1fr_44px] items-center gap-2"> <button type="button" onClick={() => changeVisibleMonth(-1)} className="flex h-11 min-h-0 items-center justify-center rounded-xl bg-surface text-screenTitle text-textPrimary" aria-label="Предыдущий месяц" title="Предыдущий месяц"> <CaretLeft className="h-5 w-5" weight="bold" aria-hidden="true"/></button> <div className="min-w-0 rounded-xl bg-surface px-3 py-2 text-center"> <p className="truncate text-conversationName text-textPrimary">{formatMonth(visibleMonth)}</p> <p className="truncate text-messageMetadata text-textSecondary">{formatLongDate(selectedDate)}</p> </div> <button type="button" onClick={() => changeVisibleMonth(1)} className="flex h-11 min-h-0 items-center justify-center rounded-xl bg-surface text-screenTitle text-textPrimary" aria-label="Следующий месяц" title="Следующий месяц"> <CaretRight className="h-5 w-5" weight="bold" aria-hidden="true"/></button> </div> <div className="grid grid-cols-7 gap-1 text-center"> {weekDays.map((day) => (<span key={day} className="py-1 text-messageMetadata text-textSecondary"> {day} </span>))} {calendarCells.map((cell) => { const dateKey = formatDateKey(cell.date); const selected = dateKey === blockForm.date; const today = dateKey === formatDateKey(new Date()); const blockedCount = blockedDates.get(dateKey) || 0; return (<button key={dateKey} type="button" onClick={() => selectDate(cell.date)} className={`schedule-exception-day relative flex aspect-square min-h-0 items-center justify-center rounded-xl text-buttonLabel transition ${selected ? "schedule-exception-day-selected text-surface" : cell.inMonth ? "bg-surface text-textPrimary" : "bg-surface/60 text-textSecondary"}`} aria-pressed={selected}> <span>{cell.date.getDate()}</span> {blockedCount > 0 && (<span className={`schedule-exception-day-marker ${selected ? "schedule-exception-day-marker-selected" : ""}`} aria-label={`Исключений: ${blockedCount}`}> {blockedCount} </span>)} {today && !selected && !blockedCount && <span className="absolute bottom-1 h-1 w-1 rounded-full bg-primary" aria-hidden="true"/>}</button>); })} </div> </section> <button type="button" onClick={() => setTimePickerOpen(true)} className="schedule-exception-time-button w-full truncate rounded-xl px-4 py-3 text-center text-buttonLabel"> Задать время на {formatLongDate(selectedDate)}</button> {timePickerOpen && (<div className="client-bottom-sheet-screen client-bottom-sheet-screen-open schedule-exception-time-modal" role="dialog" aria-modal="true" onClick={() => setTimePickerOpen(false)}> <div className="client-bottom-sheet-spacer" aria-hidden="true"/> <div className="client-bottom-sheet schedule-exception-time-panel weekday-booksy" onClick={(event) => event.stopPropagation()}> <div className="schedule-exception-time-content grid gap-3"> <div className="flex items-start justify-between gap-3"> <div className="min-w-0"> <p className="truncate text-conversationName text-textPrimary">Время исключения</p> <p className="truncate text-settingsRowDescription text-textSecondary">{formatLongDate(selectedDate)}</p> </div> <button type="button" onClick={() => setTimePickerOpen(false)} className="flex h-9 w-9 min-h-0 shrink-0 items-center justify-center rounded-full bg-background text-textPrimary" aria-label="Закрыть" title="Закрыть"> <CloseIcon /></button> </div> <section className="weekday-booksy-time"> <TimeRangeWheelPicker className="weekday-booksy-wheel" start={blockForm.start} end={blockForm.end} startLabel="" endLabel="" onStartChange={(start) => setBlockForm((current) => ({ ...current, start }))} onEndChange={(end) => setBlockForm((current) => ({ ...current, end }))}/> </section> <textarea value={blockForm.reason} onChange={(event) => setBlockForm((current) => ({ ...current, reason: event.target.value }))} className="mb-3 min-h-12 w-full resize-none rounded-xl border border-border bg-background px-3 py-3 text-settingsRowDescription" placeholder="Например: перерыв, отпуск, личные дела"/> <button type="submit" className="schedule-exception-close-time-button w-full rounded-xl px-4 py-3 text-buttonLabel text-surface"> <span>Закрыть это время</span> <span className="schedule-exception-close-time-x" aria-hidden="true"> <Check weight="bold"/> </span></button> </div> </div> </div>)} </form>); }
+    setTimePickerOpen(false); addBlockedTime(event); }; return (<form onSubmit={submitBlockedTime} className="schedule-exception-editor grid gap-4"> <section className="schedule-exception-calendar rounded-2xl bg-background p-3"> <div className="mb-3 grid grid-cols-[44px_1fr_44px] items-center gap-2"> <button type="button" onClick={() => changeVisibleMonth(-1)} className="flex h-11 min-h-0 items-center justify-center rounded-xl bg-surface text-screenTitle text-textPrimary" aria-label="Предыдущий месяц" title="Предыдущий месяц"> <CaretLeft className="h-5 w-5" weight="bold" aria-hidden="true"/></button> <div className="min-w-0 rounded-xl bg-surface px-3 py-2 text-center"> <p className="truncate text-conversationName text-textPrimary">{formatMonth(visibleMonth)}</p> <p className="truncate text-messageMetadata text-textSecondary">{formatLongDate(selectedDate)}</p> </div> <button type="button" onClick={() => changeVisibleMonth(1)} className="flex h-11 min-h-0 items-center justify-center rounded-xl bg-surface text-screenTitle text-textPrimary" aria-label="Следующий месяц" title="Следующий месяц"> <CaretRight className="h-5 w-5" weight="bold" aria-hidden="true"/></button> </div> <div className="grid grid-cols-7 gap-1 text-center"> {weekDays.map((day) => (<span key={day} className="py-1 text-messageMetadata text-textSecondary"> {day} </span>))} {calendarCells.map((cell) => { const dateKey = formatDateKey(cell.date); const selected = dateKey === blockForm.date; const today = dateKey === formatDateKey(new Date()); const blockedCount = blockedDates.get(dateKey) || 0; return (<button key={dateKey} type="button" onClick={() => selectDate(cell.date)} className={`schedule-exception-day relative flex aspect-square min-h-0 items-center justify-center rounded-xl text-buttonLabel transition ${selected ? "schedule-exception-day-selected text-surface" : cell.inMonth ? "bg-surface text-textPrimary" : "bg-surface/60 text-textSecondary"}`} aria-pressed={selected}> <span>{cell.date.getDate()}</span> {blockedCount > 0 && (<span className={`schedule-exception-day-marker ${selected ? "schedule-exception-day-marker-selected" : ""}`} aria-label={`Исключений: ${blockedCount}`}> {blockedCount} </span>)} {today && !selected && !blockedCount && <span className="absolute bottom-1 h-1 w-1 rounded-full bg-primary" aria-hidden="true"/>}</button>); })} </div> </section> <button type="button" onClick={() => setTimePickerOpen(true)} className="schedule-exception-time-button w-full truncate rounded-xl px-4 py-3 text-center text-buttonLabel"> Задать время на {formatLongDate(selectedDate)}</button> {timePickerOpen && (<DraggableBottomSheetFrame screenClassName="schedule-exception-time-modal" panelClassName="schedule-exception-time-panel weekday-booksy" onClose={() => setTimePickerOpen(false)}> <div className="schedule-exception-time-content grid gap-3"> <div className="flex items-start justify-between gap-3"> <div className="min-w-0"> <p className="truncate text-conversationName text-textPrimary">Время исключения</p> <p className="truncate text-settingsRowDescription text-textSecondary">{formatLongDate(selectedDate)}</p> </div> <button type="button" onClick={() => setTimePickerOpen(false)} className="flex h-9 w-9 min-h-0 shrink-0 items-center justify-center rounded-full bg-background text-textPrimary" aria-label="Закрыть" title="Закрыть"> <CloseIcon /></button> </div> <section className="weekday-booksy-time"> <TimeRangeWheelPicker className="weekday-booksy-wheel" start={blockForm.start} end={blockForm.end} startLabel="" endLabel="" onStartChange={(start) => setBlockForm((current) => ({ ...current, start }))} onEndChange={(end) => setBlockForm((current) => ({ ...current, end }))}/> </section> <textarea value={blockForm.reason} onChange={(event) => setBlockForm((current) => ({ ...current, reason: event.target.value }))} className="mb-3 min-h-12 w-full resize-none rounded-xl border border-border bg-background px-3 py-3 text-settingsRowDescription" placeholder="Например: перерыв, отпуск, личные дела"/> <button type="submit" className="schedule-exception-close-time-button w-full rounded-xl px-4 py-3 text-buttonLabel text-surface"> <span>Закрыть это время</span> <span className="schedule-exception-close-time-x" aria-hidden="true"> <Check weight="bold"/> </span></button> </div> </DraggableBottomSheetFrame>)} </form>); }
 function NumberField({ label, onChange, onFocus, value }: {
     label: string;
     onChange: (value: number) => void;
@@ -1761,7 +2039,7 @@ function ClientsSection(props: {
     const cancelClientProfileEdit = () => { setClientProfileEditMode(null); props.cancelClientEdit(); };
     const saveClientProfileEdit = () => { props.saveClient(); if (!props.clientForm.name.trim() || !props.clientForm.phone.trim())
         return; setClientProfileEditMode(null); };
-    const clientFormPanel = (<div className={`client-bottom-sheet-screen ${clientFormPanelOpen ? "client-bottom-sheet-screen-open" : ""}`} data-dashboard-swipe-ignore="true" onClick={closeClientFormPanel} onPointerDown={(event) => event.stopPropagation()} onPointerMove={(event) => event.stopPropagation()} onPointerUp={(event) => event.stopPropagation()} onTouchStart={(event) => event.stopPropagation()} onTouchMove={(event) => event.stopPropagation()} onTouchEnd={(event) => event.stopPropagation()}> <div className="client-bottom-sheet-spacer" aria-hidden="true"/> <div className="client-bottom-sheet" data-dashboard-swipe-ignore="true" onClick={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()} onPointerMove={(event) => event.stopPropagation()} onPointerUp={(event) => event.stopPropagation()} onTouchStart={(event) => event.stopPropagation()} onTouchMove={(event) => event.stopPropagation()} onTouchEnd={(event) => event.stopPropagation()}> <form onSubmit={props.saveClient} className="grid gap-3"> <div className="client-bottom-sheet-header"> <div className="min-w-0"> <p className="text-conversationName text-textPrimary">{isClientEditing ? "Редактировать клиента" : "Новый клиент"}</p> <p className="mt-1 text-settingsRowDescription text-textSecondary">{isClientEditing ? "Измените имя, телефон и заметки." : "Заполните имя, телефон и заметки."}</p> </div> <button type="button" onClick={closeClientFormPanel} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-background text-textPrimary hover:bg-background" aria-label="Закрыть" title="Закрыть"> <CloseIcon /></button> </div> <label className="space-y-2"> <span className="text-sectionLabel text-textSecondary">Имя</span> <input value={props.clientForm.name} onChange={(event) => props.setClientForm((current) => ({ ...current, name: event.target.value }))} className="h-10 w-full rounded-lg border border-border px-3 text-settingsRowDescription" placeholder="Имя клиента"/> </label> <label className="space-y-2"> <span className="text-sectionLabel text-textSecondary">Телефон</span> <input value={props.clientForm.phone} onChange={(event) => props.setClientForm((current) => ({ ...current, phone: event.target.value }))} className="h-10 w-full rounded-lg border border-border px-3 text-settingsRowDescription" placeholder="+7 ..."/> </label> <label className="space-y-2"> <span className="text-sectionLabel text-textSecondary">Заметки</span> <textarea value={props.clientForm.notes} onChange={(event) => props.setClientForm((current) => ({ ...current, notes: event.target.value }))} className="min-h-28 w-full rounded-lg border border-border px-3 py-3 text-settingsRowDescription" placeholder="Предпочтения, нюансы, важные детали" rows={5}/> </label> <div className="client-bottom-sheet-actions grid grid-cols-2 gap-2 md:flex md:flex-row"> <button type="submit" className="client-bottom-sheet-submit w-full rounded-lg bg-primary px-3 py-3 text-settingsRowTitle text-surface md:w-auto"> {isClientEditing ? "Сохранить" : "Добавить"}</button> <button type="button" onMouseDown={(event) => { event.preventDefault(); event.stopPropagation(); closeClientFormPanel(); }} onPointerDown={(event) => { event.stopPropagation(); closeClientFormPanel(); }} onPointerUp={(event) => event.stopPropagation()} onTouchStart={(event) => { event.preventDefault(); event.stopPropagation(); closeClientFormPanel(); }} onTouchEnd={(event) => event.stopPropagation()} onClick={(event) => { event.preventDefault(); event.stopPropagation(); closeClientFormPanel(); }} className="client-bottom-sheet-cancel w-full rounded-lg border border-border px-3 py-3 text-settingsRowTitle md:w-auto"> {isClientEditing ? "Отмена" : "Не сейчас"}</button> </div> </form> </div> </div>);
+    const clientFormPanel = (<DraggableBottomSheetFrame screenClassName="client-form-bottom-sheet-screen" panelClassName="client-form-bottom-sheet" onClose={closeClientFormPanel}> <form onSubmit={props.saveClient} className="grid gap-3"> <div className="client-bottom-sheet-header"> <div className="min-w-0"> <p className="text-conversationName text-textPrimary">{isClientEditing ? "Редактировать клиента" : "Новый клиент"}</p> <p className="mt-1 text-settingsRowDescription text-textSecondary">{isClientEditing ? "Измените имя, телефон и заметки." : "Заполните имя, телефон и заметки."}</p> </div> <button type="button" onClick={closeClientFormPanel} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-background text-textPrimary hover:bg-background" aria-label="Закрыть" title="Закрыть"> <CloseIcon /></button> </div> <label className="space-y-2"> <span className="text-settingsRowTitle text-textPrimary">Имя</span> <input value={props.clientForm.name} onChange={(event) => props.setClientForm((current) => ({ ...current, name: event.target.value }))} className="settings-input min-h-11 w-full rounded-xl border border-border bg-surface px-3.5 py-2 text-messageInput text-textPrimary outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10" placeholder="Имя клиента"/> </label> <label className="space-y-2"> <span className="text-settingsRowTitle text-textPrimary">Телефон</span> <input value={props.clientForm.phone} onChange={(event) => props.setClientForm((current) => ({ ...current, phone: event.target.value }))} className="settings-input min-h-11 w-full rounded-xl border border-border bg-surface px-3.5 py-2 text-messageInput text-textPrimary outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10" placeholder="+7 ..."/> </label> <label className="space-y-2"> <span className="text-settingsRowTitle text-textPrimary">Заметки</span> <textarea value={props.clientForm.notes} onChange={(event) => props.setClientForm((current) => ({ ...current, notes: event.target.value }))} className="settings-input min-h-24 w-full resize-none rounded-xl border border-border bg-surface px-3.5 py-2 text-messageInput text-textPrimary outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10" placeholder="Предпочтения, нюансы, важные детали" rows={5}/> </label> <div className="client-bottom-sheet-actions grid grid-cols-2 gap-2 md:flex md:flex-row"> <button type="submit" className="client-bottom-sheet-submit w-full rounded-lg bg-primary px-3 py-3 text-settingsRowTitle text-surface md:w-auto"> {isClientEditing ? "Сохранить" : "Добавить"}</button> <button type="button" onMouseDown={(event) => { event.preventDefault(); event.stopPropagation(); closeClientFormPanel(); }} onPointerDown={(event) => { event.stopPropagation(); closeClientFormPanel(); }} onPointerUp={(event) => event.stopPropagation()} onTouchStart={(event) => { event.preventDefault(); event.stopPropagation(); closeClientFormPanel(); }} onTouchEnd={(event) => event.stopPropagation()} onClick={(event) => { event.preventDefault(); event.stopPropagation(); closeClientFormPanel(); }} className="client-bottom-sheet-cancel w-full rounded-lg border border-border px-3 py-3 text-settingsRowTitle md:w-auto"> {isClientEditing ? "Отмена" : "Не сейчас"}</button> </div> </form> </DraggableBottomSheetFrame>);
     const clientFormPanelPortalTarget = typeof document === "undefined" ? null : document.body;
     const clientFormPanelPortal = clientFormPanelOpen && clientFormPanelPortalTarget ? createPortal(<div className="master-workspace">{clientFormPanel}</div>, clientFormPanelPortalTarget) : null;
     return (<div className={`client-filter-swipe-shell space-y-3 ${clientFormPanelOpen ? "client-sheet-active" : ""} ${activeClient ? "client-profile-active" : ""}`} onClickCapture={handleClientSwipeClickCapture} onPointerCancel={handleClientFilterPointerCancel} onPointerDown={handleClientFilterPointerDown} onPointerMove={handleClientFilterPointerMove} onPointerUp={handleClientFilterPointerUp} onTouchCancel={() => { clientFilterSwipeStart.current = null; resetClientFilterMotion(true); }} onTouchEnd={handleClientFilterTouchEnd} onTouchMove={handleClientFilterTouchMove} onTouchStart={handleClientFilterTouchStart}> {clientFormPanelPortal} {activeClient && (<div className="client-profile-modal client-reference-modal fixed inset-0 z-[75]" role="region"> <button type="button" className="client-profile-backdrop absolute inset-0" onClick={closeActiveClient} aria-label="Закрыть профиль клиента"/> <section className="client-reference-profile relative w-full" onClick={(event) => event.stopPropagation()}> <div className="client-reference-topbar"> <button type="button" className="client-profile-close" onClick={closeActiveClient} aria-label="Назад" title="Назад"> <BackArrowIcon /></button> <h2 className="truncate">{activeClient.name}</h2> <button type="button" className="client-reference-icon-button" aria-label="Ещё" title="Ещё"> <DotsThree weight="bold" aria-hidden="true"/></button> </div> <div className="client-reference-content"> <div className="client-reference-edit-form"> <section className="client-reference-hero"> <div className="client-reference-avatar" aria-hidden="true">{getClientInitials(activeClient)}</div> <div className="client-reference-main-person"> <div className="client-reference-identity"> {activeClientIdentityEditing ? (<> <input value={props.clientForm.name} onChange={(event) => props.setClientForm((current) => ({ ...current, name: event.target.value }))} placeholder="Имя клиента"/> <input value={props.clientForm.phone} onChange={(event) => props.setClientForm((current) => ({ ...current, phone: event.target.value }))} placeholder="+7 ..."/> </>) : (<> <h1 className="truncate">{activeClient.name}</h1> <p>{activeClient.phone || "Телефон не указан"}</p> </>)} </div> {activeClientIdentityEditing ? (<button type="button" className="client-reference-main-edit client-reference-save-identity" onClick={saveClientProfileEdit} aria-label="Сохранить имя и телефон" title="Сохранить"> <Check weight="bold" aria-hidden="true"/></button>) : (<button type="button" className="client-reference-main-edit client-reference-pencil-edit" onClick={() => startClientProfileEdit(activeClient, "identity")} aria-label="Редактировать имя и телефон" title="Редактировать"> <PencilSimple weight="light" aria-hidden="true"/></button>)} </div> <div className="client-reference-actions"> <button type="button" title="Позвонить"> <Phone weight="bold" aria-hidden="true"/> <span>Позвонить</span></button> <button type="button" title="Написать"> <WhatsappLogo weight="bold" aria-hidden="true"/> <span>Написать</span></button> <button type="button" title="Запись"> <CalendarBlank weight="bold" aria-hidden="true"/> <span>Запись</span></button> <button type="button" className="client-reference-delete-action" title="Удалить" onClick={() => setDeleteTarget(activeClient)}> <Trash weight="bold" aria-hidden="true"/> <span>Удалить</span></button> </div> </section> {deleteTarget?.id === activeClient.id && (<section className="client-reference-delete-confirm" role="alert"> <p>Удалить клиента из базы? Записи в календаре останутся.</p> <div> <button type="button" onClick={() => { props.deleteClient(activeClient.id); setDeleteTarget(null); setSelectedClient(null); }}> Удалить</button> <button type="button" onClick={() => setDeleteTarget(null)}> Отмена</button> </div> </section>)} <section className="client-reference-info-card"> <div><span>Последний визит</span><strong>{activeClient.lastVisit ? formatClientVisitDate(parseDateKey(activeClient.lastVisit)) : "Пока нет"}</strong></div> <div><span>Всего записей</span><strong>{activeClient.visits}</strong></div> <div><span>Общая сумма</span><strong>{activeClient.totalSpent ? `${activeClient.totalSpent.toLocaleString("ru-RU")} ₽` : "0 ₽"}</strong></div> <div><span>Telegram</span><strong>{activeClient.telegramConnected ? `Подключен${activeClient.telegramUsername ? ` · @${activeClient.telegramUsername}` : ""}` : "Не подключен"}</strong></div> <div className="client-reference-tags-row"> <span>Теги</span> <p>{getClientTags(activeClient).map((tag) => <b key={tag}>{tag}</b>)}</p> </div> </section> <section className="client-reference-notes-card"> <div className="client-reference-notes-title"> <h3>Заметки</h3> {!activeClientNotesEditing && (<button type="button" className="client-reference-pencil-edit" onClick={() => startClientProfileEdit(activeClient, "notes")} aria-label="Редактировать заметки" title="Редактировать"> <PencilSimple weight="light" aria-hidden="true"/></button>)} </div> {activeClientNotesEditing ? (<textarea value={props.clientForm.notes} onChange={(event) => props.setClientForm((current) => ({ ...current, notes: event.target.value }))} placeholder="Предпочтения, нюансы, важные детали" rows={4}/>) : (<p>{activeClient.notes.trim() || "Заметок пока нет"}</p>)} </section> {activeClientNotesEditing && (<div className="client-reference-edit-actions"> <button type="button" onClick={saveClientProfileEdit}>Сохранить заметку</button> <button type="button" onClick={cancelClientProfileEdit}>Отмена</button> </div>)} </div> <section className="client-reference-history"> <div className="client-reference-section-title"> <h3>История посещений</h3> </div> {selectedClientHistory.length === 0 ? (<p className="client-reference-empty">История появится после первой записи клиента.</p>) : (<div className="client-reference-history-list"> {selectedClientHistory.map(({ appointment, duration, noShow, price, serviceTitle }) => (<article key={appointment.id} className="client-reference-history-item"> <span>{formatClientVisitDate(parseDateKey(appointment.date))}</span> <div className="min-w-0"> <p className="client-profile-history-service truncate">{serviceTitle}</p> <p className="client-profile-history-meta">{appointment.time} · {duration} мин</p> </div> <strong> {noShow && <span className="client-reference-history-no-show">не пришёл</span>} {price ? `${price.toLocaleString("ru-RU")} ₽` : "0 ₽"} </strong> </article>))} </div>)} </section> </div> </section> </div>)} <div className="client-reference-screen"> <header className="client-reference-header"> <div className="client-reference-title-row"> <h1>Клиенты</h1> <button type="button" onClick={() => { props.cancelClientEdit(); props.setClientForm(emptyClient); props.setClientFormOpen(true); }} className="client-reference-add" aria-label="Добавить клиента" title="Добавить клиента"> <Plus weight="bold" aria-hidden="true"/></button> </div> <label className="services-search-field client-reference-search"> <MagnifyingGlass className="h-5 w-5 shrink-0" aria-hidden="true"/> <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Поиск по имени или телефону"/> </label> <div ref={clientFiltersRef} className="client-reference-filters" role="tablist" aria-label="Фильтр клиентов"> {clientFilters.map(([value, label]) => (<button key={value} type="button" onClick={() => selectClientFilter(value as "all" | "regular" | "new")} className={clientFilter === value ? "client-reference-filter-active" : ""} role="tab" aria-selected={clientFilter === value}> <span>{label}</span><span className="client-reference-filter-count">{clientFilterCounts[value]}</span></button>))} <span className="client-reference-filters-underline" aria-hidden="true"/> </div> </header> {!props.editingClientId && (<div className="hidden"> <button type="button" onClick={() => props.setClientFormOpen((open) => !open)} className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-settingsRowTitle text-textPrimary hover:bg-background" aria-expanded={props.clientFormOpen}> <span className="flex min-w-0 items-center gap-2"> <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-surface text-primary ring-1 ring-inset ring-primary"> <ActionIcon name="plus"/> </span> <span className="truncate">Добавить клиента</span> </span> <ChevronIcon open={props.clientFormOpen}/></button> <div className={`grid transition-all duration-300 ${props.clientFormOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}> <div className="min-h-0 overflow-hidden"> <form onSubmit={props.saveClient} className="grid gap-2 border-t border-border p-3 md:grid-cols-[1fr_1fr_2fr_auto] md:items-end"> <label className="space-y-2"> <span className="text-sectionLabel text-textSecondary">Имя</span> <input value={props.clientForm.name} onChange={(event) => props.setClientForm((current) => ({ ...current, name: event.target.value }))} className="h-10 w-full rounded-lg border border-border px-3 text-settingsRowDescription" placeholder="Имя клиента"/> </label> <label className="space-y-2"> <span className="text-sectionLabel text-textSecondary">Телефон</span> <input value={props.clientForm.phone} onChange={(event) => props.setClientForm((current) => ({ ...current, phone: event.target.value }))} className="h-10 w-full rounded-lg border border-border px-3 text-settingsRowDescription" placeholder="+7 ..."/> </label> <label className="space-y-2"> <span className="text-sectionLabel text-textSecondary">Заметки</span> <input value={props.clientForm.notes} onChange={(event) => props.setClientForm((current) => ({ ...current, notes: event.target.value }))} className="h-10 w-full rounded-lg border border-border px-3 text-settingsRowDescription" placeholder="Предпочтения, нюансы, важные детали"/> </label> <div> <button type="submit" className="h-10 w-full rounded-lg bg-primary px-4 text-settingsRowTitle text-surface md:w-auto"> Добавить</button> </div> </form> </div> </div> </div>)} <div className="client-reference-list-viewport"> <div ref={clientListRef} className="client-reference-list-track"> <section className="client-list client-reference-list client-reference-list-panel client-reference-list-current"> {filteredClients.length === 0 ? (<article className="saas-card p-4 text-center text-settingsRowDescription text-textSecondary"> {props.clients.length === 0 ? "Клиенты появятся здесь после первой записи или ручного добавления." : "По этому запросу клиентов не найдено."} </article>) : (filteredClients.map((client) => { const isEditing = props.editingClientId === client.id; const expanded = isEditing || deleteTarget?.id === client.id; if (false && props.compactClients && expandedCompactClientId !== client.id) {
@@ -1951,6 +2229,13 @@ function BookingPageSettingsSection(props: {
     const addressSheetSwipeRef = useRef<{ pointerId?: number; startX: number; startY: number; startedAt: number; dragging: boolean } | null>(null);
     const addressSheetElementRef = useRef<HTMLElement | null>(null);
     const addressSheetCloseTimerRef = useRef<number | null>(null);
+    useEffect(() => {
+        const locked = accentPickerOpen || headingPickerOpen || addressFormOpen || serviceDisplayPickerOpen || dateDisplayPickerOpen;
+        document.body.classList.toggle("client-bottom-sheet-lock", locked);
+        return () => {
+            document.body.classList.remove("client-bottom-sheet-lock");
+        };
+    }, [accentPickerOpen, addressFormOpen, dateDisplayPickerOpen, headingPickerOpen, serviceDisplayPickerOpen]);
     const [addressDraft, setAddressDraft] = useState({ city: settings.city || "", address: settings.address || "", cabinet: "", guide: "", isOnline: settings.isOnline === true });
     type BookingHeadingMode = "friendly" | "classic" | "minimal";
     type BookingServiceCardStyle = "stack" | "spotlight" | "wheel" | "grid" | "feature";
@@ -2052,15 +2337,16 @@ function BookingPageSettingsSection(props: {
     };
     const shouldIgnoreAccentSheetSwipe = (target: EventTarget | null, allowFormControls = false) => target instanceof HTMLElement && Boolean(target.closest(allowFormControls ? "select, [contenteditable='true']" : "input, textarea, select, button, [contenteditable='true']"));
     const beginAccentSheetPointerSwipe = (event: PointerEvent<HTMLElement>) => {
+        event.stopPropagation();
         if (shouldIgnoreAccentSheetSwipe(event.target, event.pointerType === "touch"))
             return;
         accentSheetSwipeRef.current = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, startedAt: Date.now(), dragging: false };
         event.currentTarget.setPointerCapture(event.pointerId);
         accentSheetElementRef.current = event.currentTarget;
         listenAccentSheetWindowGesture();
-        event.stopPropagation();
     };
     const beginAccentSheetMouseSwipe = (event: MouseEvent<HTMLElement>) => {
+        event.stopPropagation();
         if (event.button !== 0 || shouldIgnoreAccentSheetSwipe(event.target))
             return;
         if (accentSheetSwipeRef.current?.pointerId !== undefined)
@@ -2068,7 +2354,6 @@ function BookingPageSettingsSection(props: {
         accentSheetSwipeRef.current = { startX: event.clientX, startY: event.clientY, startedAt: Date.now(), dragging: false };
         accentSheetElementRef.current = event.currentTarget;
         listenAccentSheetWindowGesture();
-        event.stopPropagation();
     };
     const moveAccentSheetSwipe = (clientX: number, clientY: number, sheet: HTMLElement, cancelDefault: () => void) => {
         const swipe = accentSheetSwipeRef.current;
@@ -2182,40 +2467,40 @@ function BookingPageSettingsSection(props: {
         setAccentSheetOffset(0);
     };
     const handleAccentSheetPointerMove = (event: PointerEvent<HTMLElement>) => {
+        event.stopPropagation();
         const swipe = accentSheetSwipeRef.current;
         if (!swipe || swipe.pointerId !== event.pointerId)
             return;
         moveAccentSheetSwipe(event.clientX, event.clientY, event.currentTarget, () => {
             event.preventDefault();
-            event.stopPropagation();
         });
     };
     const handleAccentSheetPointerUp = (event: PointerEvent<HTMLElement>) => {
+        event.stopPropagation();
         const swipe = accentSheetSwipeRef.current;
         if (!swipe || swipe.pointerId !== event.pointerId)
             return;
         event.currentTarget.releasePointerCapture(event.pointerId);
         finishAccentSheetSwipe(event.clientY, () => {
             event.preventDefault();
-            event.stopPropagation();
         });
     };
     const handleAccentSheetMouseMove = (event: MouseEvent<HTMLElement>) => {
+        event.stopPropagation();
         const swipe = accentSheetSwipeRef.current;
         if (!swipe || swipe.pointerId !== undefined)
             return;
         moveAccentSheetSwipe(event.clientX, event.clientY, event.currentTarget, () => {
             event.preventDefault();
-            event.stopPropagation();
         });
     };
     const handleAccentSheetMouseUp = (event: MouseEvent<HTMLElement>) => {
+        event.stopPropagation();
         const swipe = accentSheetSwipeRef.current;
         if (!swipe || swipe.pointerId !== undefined)
             return;
         finishAccentSheetSwipe(event.clientY, () => {
             event.preventDefault();
-            event.stopPropagation();
         });
     };
     const cancelAccentSheetPointerSwipe = (event: PointerEvent<HTMLElement>) => {
@@ -2228,30 +2513,30 @@ function BookingPageSettingsSection(props: {
         setAccentSheetOffset(0);
     };
     const handleAccentSheetTouchStart = (event: TouchEvent<HTMLElement>) => {
+        event.stopPropagation();
         const touch = event.touches[0];
         if (!touch || shouldIgnoreAccentSheetSwipe(event.target, true))
             return;
         accentSheetSwipeRef.current = { startX: touch.clientX, startY: touch.clientY, startedAt: Date.now(), dragging: false };
         accentSheetElementRef.current = event.currentTarget;
         listenAccentSheetWindowGesture();
-        event.stopPropagation();
     };
     const handleAccentSheetTouchMove = (event: TouchEvent<HTMLElement>) => {
+        event.stopPropagation();
         const touch = event.touches[0];
         if (!touch)
             return;
         moveAccentSheetSwipe(touch.clientX, touch.clientY, event.currentTarget, () => {
             event.preventDefault();
-            event.stopPropagation();
         });
     };
     const handleAccentSheetTouchEnd = (event: TouchEvent<HTMLElement>) => {
+        event.stopPropagation();
         const touch = event.changedTouches[0];
         if (!touch)
             return;
         finishAccentSheetSwipe(touch.clientY, () => {
             event.preventDefault();
-            event.stopPropagation();
         });
     };
     const accentSheetDragStyle = accentSheetPhase === "open" && accentSheetOffset === 0 ? undefined : {
@@ -2333,15 +2618,16 @@ function BookingPageSettingsSection(props: {
     };
     const shouldIgnoreHeadingSheetSwipe = (target: EventTarget | null, allowButtons = false) => target instanceof HTMLElement && Boolean(target.closest(allowButtons ? "select, [contenteditable='true']" : "input, textarea, select, button, [contenteditable='true']"));
     const beginHeadingSheetPointerSwipe = (event: PointerEvent<HTMLElement>) => {
+        event.stopPropagation();
         if (shouldIgnoreHeadingSheetSwipe(event.target, event.pointerType === "touch"))
             return;
         headingSheetSwipeRef.current = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, startedAt: Date.now(), dragging: false };
         event.currentTarget.setPointerCapture(event.pointerId);
         headingSheetElementRef.current = event.currentTarget;
         listenHeadingSheetWindowGesture();
-        event.stopPropagation();
     };
     const beginHeadingSheetMouseSwipe = (event: MouseEvent<HTMLElement>) => {
+        event.stopPropagation();
         if (event.button !== 0 || shouldIgnoreHeadingSheetSwipe(event.target))
             return;
         if (headingSheetSwipeRef.current?.pointerId !== undefined)
@@ -2349,7 +2635,6 @@ function BookingPageSettingsSection(props: {
         headingSheetSwipeRef.current = { startX: event.clientX, startY: event.clientY, startedAt: Date.now(), dragging: false };
         headingSheetElementRef.current = event.currentTarget;
         listenHeadingSheetWindowGesture();
-        event.stopPropagation();
     };
     const moveHeadingSheetSwipe = (clientX: number, clientY: number, sheet: HTMLElement, cancelDefault: () => void) => {
         const swipe = headingSheetSwipeRef.current;
@@ -2463,40 +2748,40 @@ function BookingPageSettingsSection(props: {
         setHeadingSheetOffset(0);
     };
     const handleHeadingSheetPointerMove = (event: PointerEvent<HTMLElement>) => {
+        event.stopPropagation();
         const swipe = headingSheetSwipeRef.current;
         if (!swipe || swipe.pointerId !== event.pointerId)
             return;
         moveHeadingSheetSwipe(event.clientX, event.clientY, event.currentTarget, () => {
             event.preventDefault();
-            event.stopPropagation();
         });
     };
     const handleHeadingSheetPointerUp = (event: PointerEvent<HTMLElement>) => {
+        event.stopPropagation();
         const swipe = headingSheetSwipeRef.current;
         if (!swipe || swipe.pointerId !== event.pointerId)
             return;
         event.currentTarget.releasePointerCapture(event.pointerId);
         finishHeadingSheetSwipe(event.clientY, () => {
             event.preventDefault();
-            event.stopPropagation();
         });
     };
     const handleHeadingSheetMouseMove = (event: MouseEvent<HTMLElement>) => {
+        event.stopPropagation();
         const swipe = headingSheetSwipeRef.current;
         if (!swipe || swipe.pointerId !== undefined)
             return;
         moveHeadingSheetSwipe(event.clientX, event.clientY, event.currentTarget, () => {
             event.preventDefault();
-            event.stopPropagation();
         });
     };
     const handleHeadingSheetMouseUp = (event: MouseEvent<HTMLElement>) => {
+        event.stopPropagation();
         const swipe = headingSheetSwipeRef.current;
         if (!swipe || swipe.pointerId !== undefined)
             return;
         finishHeadingSheetSwipe(event.clientY, () => {
             event.preventDefault();
-            event.stopPropagation();
         });
     };
     const cancelHeadingSheetPointerSwipe = (event: PointerEvent<HTMLElement>) => {
@@ -2509,30 +2794,30 @@ function BookingPageSettingsSection(props: {
         setHeadingSheetOffset(0);
     };
     const handleHeadingSheetTouchStart = (event: TouchEvent<HTMLElement>) => {
+        event.stopPropagation();
         const touch = event.touches[0];
         if (!touch || shouldIgnoreHeadingSheetSwipe(event.target, true))
             return;
         headingSheetSwipeRef.current = { startX: touch.clientX, startY: touch.clientY, startedAt: Date.now(), dragging: false };
         headingSheetElementRef.current = event.currentTarget;
         listenHeadingSheetWindowGesture();
-        event.stopPropagation();
     };
     const handleHeadingSheetTouchMove = (event: TouchEvent<HTMLElement>) => {
+        event.stopPropagation();
         const touch = event.touches[0];
         if (!touch)
             return;
         moveHeadingSheetSwipe(touch.clientX, touch.clientY, event.currentTarget, () => {
             event.preventDefault();
-            event.stopPropagation();
         });
     };
     const handleHeadingSheetTouchEnd = (event: TouchEvent<HTMLElement>) => {
+        event.stopPropagation();
         const touch = event.changedTouches[0];
         if (!touch)
             return;
         finishHeadingSheetSwipe(touch.clientY, () => {
             event.preventDefault();
-            event.stopPropagation();
         });
     };
     const headingSheetDragStyle = headingSheetPhase === "open" && headingSheetOffset === 0 ? undefined : {
@@ -2611,15 +2896,16 @@ function BookingPageSettingsSection(props: {
     };
     const shouldIgnoreAddressSheetSwipe = (target: EventTarget | null, allowFormControls = false) => target instanceof HTMLElement && Boolean(target.closest(allowFormControls ? "select, [contenteditable='true']" : "input, textarea, select, button, [contenteditable='true']"));
     const beginAddressSheetPointerSwipe = (event: PointerEvent<HTMLElement>) => {
+        event.stopPropagation();
         if (shouldIgnoreAddressSheetSwipe(event.target, event.pointerType === "touch"))
             return;
         addressSheetSwipeRef.current = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, startedAt: Date.now(), dragging: false };
         event.currentTarget.setPointerCapture(event.pointerId);
         addressSheetElementRef.current = event.currentTarget;
         listenAddressSheetWindowGesture();
-        event.stopPropagation();
     };
     const beginAddressSheetMouseSwipe = (event: MouseEvent<HTMLElement>) => {
+        event.stopPropagation();
         if (event.button !== 0 || shouldIgnoreAddressSheetSwipe(event.target))
             return;
         if (addressSheetSwipeRef.current?.pointerId !== undefined)
@@ -2627,7 +2913,6 @@ function BookingPageSettingsSection(props: {
         addressSheetSwipeRef.current = { startX: event.clientX, startY: event.clientY, startedAt: Date.now(), dragging: false };
         addressSheetElementRef.current = event.currentTarget;
         listenAddressSheetWindowGesture();
-        event.stopPropagation();
     };
     const moveAddressSheetSwipe = (clientX: number, clientY: number, sheet: HTMLElement, cancelDefault: () => void) => {
         const swipe = addressSheetSwipeRef.current;
@@ -2741,40 +3026,40 @@ function BookingPageSettingsSection(props: {
         setAddressSheetOffset(0);
     };
     const handleAddressSheetPointerMove = (event: PointerEvent<HTMLElement>) => {
+        event.stopPropagation();
         const swipe = addressSheetSwipeRef.current;
         if (!swipe || swipe.pointerId !== event.pointerId)
             return;
         moveAddressSheetSwipe(event.clientX, event.clientY, event.currentTarget, () => {
             event.preventDefault();
-            event.stopPropagation();
         });
     };
     const handleAddressSheetPointerUp = (event: PointerEvent<HTMLElement>) => {
+        event.stopPropagation();
         const swipe = addressSheetSwipeRef.current;
         if (!swipe || swipe.pointerId !== event.pointerId)
             return;
         event.currentTarget.releasePointerCapture(event.pointerId);
         finishAddressSheetSwipe(event.clientY, () => {
             event.preventDefault();
-            event.stopPropagation();
         });
     };
     const handleAddressSheetMouseMove = (event: MouseEvent<HTMLElement>) => {
+        event.stopPropagation();
         const swipe = addressSheetSwipeRef.current;
         if (!swipe || swipe.pointerId !== undefined)
             return;
         moveAddressSheetSwipe(event.clientX, event.clientY, event.currentTarget, () => {
             event.preventDefault();
-            event.stopPropagation();
         });
     };
     const handleAddressSheetMouseUp = (event: MouseEvent<HTMLElement>) => {
+        event.stopPropagation();
         const swipe = addressSheetSwipeRef.current;
         if (!swipe || swipe.pointerId !== undefined)
             return;
         finishAddressSheetSwipe(event.clientY, () => {
             event.preventDefault();
-            event.stopPropagation();
         });
     };
     const cancelAddressSheetPointerSwipe = (event: PointerEvent<HTMLElement>) => {
@@ -2787,30 +3072,30 @@ function BookingPageSettingsSection(props: {
         setAddressSheetOffset(0);
     };
     const handleAddressSheetTouchStart = (event: TouchEvent<HTMLElement>) => {
+        event.stopPropagation();
         const touch = event.touches[0];
         if (!touch || shouldIgnoreAddressSheetSwipe(event.target, true))
             return;
         addressSheetSwipeRef.current = { startX: touch.clientX, startY: touch.clientY, startedAt: Date.now(), dragging: false };
         addressSheetElementRef.current = event.currentTarget;
         listenAddressSheetWindowGesture();
-        event.stopPropagation();
     };
     const handleAddressSheetTouchMove = (event: TouchEvent<HTMLElement>) => {
+        event.stopPropagation();
         const touch = event.touches[0];
         if (!touch)
             return;
         moveAddressSheetSwipe(touch.clientX, touch.clientY, event.currentTarget, () => {
             event.preventDefault();
-            event.stopPropagation();
         });
     };
     const handleAddressSheetTouchEnd = (event: TouchEvent<HTMLElement>) => {
+        event.stopPropagation();
         const touch = event.changedTouches[0];
         if (!touch)
             return;
         finishAddressSheetSwipe(touch.clientY, () => {
             event.preventDefault();
-            event.stopPropagation();
         });
     };
     const addressSheetDragStyle = addressSheetPhase === "open" && addressSheetOffset === 0 ? undefined : {
@@ -3105,7 +3390,7 @@ function BookingPageSettingsSection(props: {
             </section>
             {addressFormOpen && typeof document !== "undefined" && createPortal((
                 <div className="master-workspace">
-                    <div className="client-bottom-sheet-screen client-bottom-sheet-screen-open address-bottom-sheet-screen" data-dashboard-swipe-ignore="true" role="dialog" aria-modal="true" aria-labelledby="address-form-title" style={addressSheetScreenStyle} onClick={closeAddressForm} onPointerDown={(event) => event.stopPropagation()} onPointerMove={(event) => event.stopPropagation()} onPointerUp={(event) => event.stopPropagation()} onTouchStart={(event) => event.stopPropagation()} onTouchMove={(event) => event.stopPropagation()} onTouchEnd={(event) => event.stopPropagation()}>
+                    <div className="client-bottom-sheet-screen client-bottom-sheet-screen-open address-bottom-sheet-screen" data-dashboard-swipe-ignore="true" role="dialog" aria-modal="true" aria-labelledby="address-form-title" style={addressSheetScreenStyle} onClick={closeAddressForm} onPointerDown={(event) => event.stopPropagation()} onPointerMove={(event) => event.stopPropagation()} onPointerUp={(event) => event.stopPropagation()} onTouchStart={(event) => { event.stopPropagation(); if (event.target === event.currentTarget) event.preventDefault(); }} onTouchMove={(event) => { event.stopPropagation(); if (event.target === event.currentTarget) event.preventDefault(); }} onTouchEnd={(event) => event.stopPropagation()}>
                     <div className="client-bottom-sheet-spacer" aria-hidden="true"/>
                         <section className="client-bottom-sheet address-bottom-sheet" data-dashboard-swipe-ignore="true" style={addressSheetDragStyle} onClick={(event) => event.stopPropagation()} onPointerDown={beginAddressSheetPointerSwipe} onPointerMove={handleAddressSheetPointerMove} onPointerUp={handleAddressSheetPointerUp} onPointerCancel={cancelAddressSheetPointerSwipe} onMouseDown={beginAddressSheetMouseSwipe} onMouseMove={handleAddressSheetMouseMove} onMouseUp={handleAddressSheetMouseUp} onTouchStart={handleAddressSheetTouchStart} onTouchMove={handleAddressSheetTouchMove} onTouchEnd={handleAddressSheetTouchEnd} onTouchCancel={() => { addressSheetSwipeRef.current = null; cleanupAddressSheetWindowListeners(); setAddressSheetPhase("settling"); setAddressSheetOffset(0); }}>
                             <div className="grid gap-3">
@@ -3156,8 +3441,7 @@ function BookingPageSettingsSection(props: {
             ), document.body)}
             {serviceDisplayPickerOpen && typeof document !== "undefined" && createPortal((
                 <div className="master-workspace">
-                    <div className="client-bottom-sheet-screen client-bottom-sheet-screen-open service-display-page-screen" data-dashboard-swipe-ignore="true" role="dialog" aria-modal="true" aria-labelledby="service-display-picker-title" onPointerDown={(event) => event.stopPropagation()} onPointerMove={(event) => event.stopPropagation()} onPointerUp={(event) => event.stopPropagation()} onTouchStart={(event) => event.stopPropagation()} onTouchMove={(event) => event.stopPropagation()} onTouchEnd={(event) => event.stopPropagation()}>
-                    <div className="client-bottom-sheet service-display-page" data-dashboard-swipe-ignore="true">
+                    <DraggableBottomSheetFrame screenClassName="service-display-page-screen" panelClassName="service-display-page" labelledBy="service-display-picker-title" onClose={() => setServiceDisplayPickerOpen(false)} showSpacer={false}>
                         <div className="service-display-page-content grid gap-3">
                             <div className="client-bottom-sheet-header service-display-page-header">
                                 <div className="min-w-0">
@@ -3216,14 +3500,12 @@ function BookingPageSettingsSection(props: {
                                </button>
                             </div>
                         </div>
-                    </div>
-                </div>
+                    </DraggableBottomSheetFrame>
                 </div>
             ), document.body)}
             {dateDisplayPickerOpen && typeof document !== "undefined" && createPortal((
                 <div className="master-workspace">
-                    <div className="client-bottom-sheet-screen client-bottom-sheet-screen-open service-display-page-screen" data-dashboard-swipe-ignore="true" role="dialog" aria-modal="true" aria-labelledby="date-display-picker-title" onPointerDown={(event) => event.stopPropagation()} onPointerMove={(event) => event.stopPropagation()} onPointerUp={(event) => event.stopPropagation()} onTouchStart={(event) => event.stopPropagation()} onTouchMove={(event) => event.stopPropagation()} onTouchEnd={(event) => event.stopPropagation()}>
-                    <div className="client-bottom-sheet service-display-page" data-dashboard-swipe-ignore="true">
+                    <DraggableBottomSheetFrame screenClassName="service-display-page-screen" panelClassName="service-display-page" labelledBy="date-display-picker-title" onClose={() => setDateDisplayPickerOpen(false)} showSpacer={false}>
                         <div className="service-display-page-content grid gap-3">
                             <div className="client-bottom-sheet-header service-display-page-header">
                                 <div className="min-w-0">
@@ -3266,13 +3548,12 @@ function BookingPageSettingsSection(props: {
                                </button>
                             </div>
                         </div>
-                    </div>
-                </div>
+                    </DraggableBottomSheetFrame>
                 </div>
             ), document.body)}
             {headingPickerOpen && typeof document !== "undefined" && createPortal((
                 <div className="master-workspace">
-                    <div className="client-bottom-sheet-screen client-bottom-sheet-screen-open heading-bottom-sheet-screen" data-dashboard-swipe-ignore="true" role="dialog" aria-modal="true" aria-labelledby="heading-picker-title" style={headingSheetScreenStyle} onClick={closeHeadingPicker} onPointerDown={(event) => event.stopPropagation()} onPointerMove={(event) => event.stopPropagation()} onPointerUp={(event) => event.stopPropagation()} onTouchStart={(event) => event.stopPropagation()} onTouchMove={(event) => event.stopPropagation()} onTouchEnd={(event) => event.stopPropagation()}>
+                    <div className="client-bottom-sheet-screen client-bottom-sheet-screen-open heading-bottom-sheet-screen" data-dashboard-swipe-ignore="true" role="dialog" aria-modal="true" aria-labelledby="heading-picker-title" style={headingSheetScreenStyle} onClick={closeHeadingPicker} onPointerDown={(event) => event.stopPropagation()} onPointerMove={(event) => event.stopPropagation()} onPointerUp={(event) => event.stopPropagation()} onTouchStart={(event) => { event.stopPropagation(); if (event.target === event.currentTarget) event.preventDefault(); }} onTouchMove={(event) => { event.stopPropagation(); if (event.target === event.currentTarget) event.preventDefault(); }} onTouchEnd={(event) => event.stopPropagation()}>
                     <div className="client-bottom-sheet-spacer" aria-hidden="true"/>
                     <div className="client-bottom-sheet" data-dashboard-swipe-ignore="true" style={headingSheetDragStyle} onClick={(event) => event.stopPropagation()} onPointerDown={beginHeadingSheetPointerSwipe} onPointerMove={handleHeadingSheetPointerMove} onPointerUp={handleHeadingSheetPointerUp} onPointerCancel={cancelHeadingSheetPointerSwipe} onMouseDown={beginHeadingSheetMouseSwipe} onMouseMove={handleHeadingSheetMouseMove} onMouseUp={handleHeadingSheetMouseUp} onTouchStart={handleHeadingSheetTouchStart} onTouchMove={handleHeadingSheetTouchMove} onTouchEnd={handleHeadingSheetTouchEnd} onTouchCancel={() => { headingSheetSwipeRef.current = null; cleanupHeadingSheetWindowListeners(); setHeadingSheetPhase("settling"); setHeadingSheetOffset(0); }}>
                         <div className="grid gap-3">
@@ -3319,7 +3600,7 @@ function BookingPageSettingsSection(props: {
             ), document.body)}
             {accentPickerOpen && typeof document !== "undefined" && createPortal((
                 <div className="master-workspace">
-                    <div className="client-bottom-sheet-screen client-bottom-sheet-screen-open accent-bottom-sheet-screen" data-dashboard-swipe-ignore="true" role="dialog" aria-modal="true" aria-labelledby="accent-picker-title" style={accentSheetScreenStyle} onClick={closeAccentPicker} onPointerDown={(event) => event.stopPropagation()} onPointerMove={(event) => event.stopPropagation()} onPointerUp={(event) => event.stopPropagation()} onTouchStart={(event) => event.stopPropagation()} onTouchMove={(event) => event.stopPropagation()} onTouchEnd={(event) => event.stopPropagation()}>
+                    <div className="client-bottom-sheet-screen client-bottom-sheet-screen-open accent-bottom-sheet-screen" data-dashboard-swipe-ignore="true" role="dialog" aria-modal="true" aria-labelledby="accent-picker-title" style={accentSheetScreenStyle} onClick={closeAccentPicker} onPointerDown={(event) => event.stopPropagation()} onPointerMove={(event) => event.stopPropagation()} onPointerUp={(event) => event.stopPropagation()} onTouchStart={(event) => { event.stopPropagation(); if (event.target === event.currentTarget) event.preventDefault(); }} onTouchMove={(event) => { event.stopPropagation(); if (event.target === event.currentTarget) event.preventDefault(); }} onTouchEnd={(event) => event.stopPropagation()}>
                     <div className="client-bottom-sheet-spacer" aria-hidden="true"/>
                     <div className="client-bottom-sheet" data-dashboard-swipe-ignore="true" style={accentSheetDragStyle} onClick={(event) => event.stopPropagation()} onPointerDown={beginAccentSheetPointerSwipe} onPointerMove={handleAccentSheetPointerMove} onPointerUp={handleAccentSheetPointerUp} onPointerCancel={cancelAccentSheetPointerSwipe} onMouseDown={beginAccentSheetMouseSwipe} onMouseMove={handleAccentSheetMouseMove} onMouseUp={handleAccentSheetMouseUp} onTouchStart={handleAccentSheetTouchStart} onTouchMove={handleAccentSheetTouchMove} onTouchEnd={handleAccentSheetTouchEnd} onTouchCancel={() => { accentSheetSwipeRef.current = null; cleanupAccentSheetWindowListeners(); setAccentSheetPhase("settling"); setAccentSheetOffset(0); }}>
                         <div className="grid gap-3">

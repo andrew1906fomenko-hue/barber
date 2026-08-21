@@ -90,6 +90,7 @@
       "slot_step_min": 30,
       "buffer_min": 0,
       "work_days": [
+        1,
         2,
         3,
         4,
@@ -114,7 +115,7 @@
           ]
         },
         "1": {
-          "enabled": false,
+          "enabled": true,
           "start": "10:00",
           "end": "20:00",
           "breakEnabled": false,
@@ -135,10 +136,16 @@
           "enabled": true,
           "start": "10:00",
           "end": "20:00",
-          "breakEnabled": false,
+          "breakEnabled": true,
           "breakStart": "13:00",
-          "breakEnd": "14:00",
-          "breaks": []
+          "breakEnd": "15:00",
+          "breaks": [
+            {
+              "id": "break-1787263080039-0",
+              "start": "13:00",
+              "end": "15:00"
+            }
+          ]
         },
         "4": {
           "enabled": true,
@@ -167,23 +174,16 @@
           "breakEnd": "14:00",
           "breaks": []
         },
-        "__scheduleMode": "cycle",
-        "__individualPlan": {
-          "startDate": "2026-08-20",
-          "endDate": "2026-11-18",
-          "cyclePreset": "weekdays",
-          "customWorkDays": 2,
-          "customOffDays": 2
-        }
+        "__scheduleMode": "weekdays"
       },
       "show_price": true,
       "min_booking_notice_min": 330,
-      "max_booking_days_ahead": 120,
+      "max_booking_days_ahead": 30,
       "created_at": "2026-06-02T16:26:04.755Z",
-      "updated_at": "2026-08-20T18:55:50.464Z",
+      "updated_at": "2026-08-20T22:48:03.663Z",
       "cover_position_x": 50,
       "cover_position_y": 50,
-      "auto_time_snap": false
+      "auto_time_snap": true
     },
     {
       "id": "de79f94a-2846-4587-a41f-9199437ff6b6",
