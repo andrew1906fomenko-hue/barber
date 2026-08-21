@@ -451,12 +451,14 @@ body.dark-theme .text-text {
 }
 
 .time-wheel-option {
-  display: flex;
+  display: grid;
   width: 100%;
+  min-height: 0;
+  padding: 0;
   scroll-snap-align: center;
-  align-items: center;
-  justify-content: center;
+  place-items: center;
   border: 0;
+  appearance: none;
   background: transparent;
   color: #7b7f86;
   font-size: 24px;
@@ -489,6 +491,8 @@ body.dark-theme .text-text {
 .time-wheel-nudge {
   display: flex;
   height: 34px;
+  min-height: 0;
+  padding: 0;
   align-items: center;
   justify-content: center;
   border: 0;
@@ -4506,6 +4510,20 @@ body.dark-theme .master-workspace .weekday-booksy-breaks {
   white-space: normal;
 }
 
+.schedule-settings-home.date-work-hours-overlay-only > :not(.individual-schedule-screen) {
+  display: none !important;
+}
+
+.schedule-settings-home.date-work-hours-overlay-only .individual-schedule-screen {
+  z-index: 1000 !important;
+  background: var(--surface) !important;
+}
+
+.master-workspace .weekday-break-time-modal.client-bottom-sheet-screen,
+body:not(.dark-theme) .master-workspace .weekday-break-time-modal.client-bottom-sheet-screen {
+  z-index: 1100 !important;
+}
+
 .booking-top-address::before {
   content: "";
   position: absolute;
@@ -4788,6 +4806,12 @@ textarea {
 button {
   @apply transition duration-200 ease-out;
   min-height: 44px;
+}
+
+.time-wheel-option,
+.time-wheel-nudge {
+  min-height: 0;
+  padding: 0;
 }
 
 input,
@@ -10256,12 +10280,28 @@ body:has(.schedule-exception-time-modal) {
 }
 
 .individual-calendar-grid {
-  gap: 0.45rem !important;
+  width: calc(100% + 1rem);
+  margin-left: -0.8rem;
+  margin-right: -0.2rem;
+  gap: 0.32rem !important;
+}
+
+.individual-custom-schedule-preview .individual-calendar-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  padding: 0.45rem !important;
+  border-radius: 0.9rem !important;
+}
+
+@media (min-width: 1280px) {
+  .individual-calendar-grid {
+    column-gap: 0.72rem !important;
+  }
 }
 
 .individual-calendar-month {
   min-width: 0;
-  padding: 0.55rem !important;
+  overflow: visible !important;
+  padding: 0.45rem !important;
   border-radius: 0.95rem !important;
   background: transparent !important;
 }
@@ -10275,11 +10315,28 @@ body:has(.schedule-exception-time-modal) {
   font-size: 0.68rem;
 }
 
-.individual-calendar-day {
+.individual-calendar-month > .grid-cols-7 {
+  grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
+  column-gap: 0.22rem !important;
+  justify-items: center;
+}
+
+.individual-calendar-month > .grid-cols-7 > span {
   display: flex;
-  aspect-ratio: 1 / 1;
+  width: 100%;
   min-width: 0;
-  min-height: 1.9rem;
+  justify-content: center;
+}
+
+.individual-calendar-day {
+  position: relative;
+  z-index: 0;
+  display: flex;
+  width: min(1.9rem, 100%);
+  height: 1.9rem;
+  min-width: 0;
+  min-height: 0;
+  justify-self: center;
   align-items: center;
   justify-content: center;
   border-radius: .6rem;
@@ -10299,12 +10356,14 @@ body:has(.schedule-exception-time-modal) {
 }
 
 .individual-calendar-day-work {
+  z-index: 1;
   background: #d9fdd3 !important;
   color: #075e54 !important;
   box-shadow: none !important;
 }
 
 .individual-calendar-day-start {
+  z-index: 2;
   background: #075e54 !important;
   color: #ffffff !important;
   box-shadow: inset 0 0 0 2px #075e54 !important;
@@ -10884,8 +10943,8 @@ body:not(.dark-theme) .master-workspace .schedule-exception-time-panel .weekday-
 body:not(.dark-theme) .master-workspace .schedule-exception-time-panel .weekday-booksy-wheel.time-range-wheel {
   background: #ffffff !important;
   max-width: 25rem !important;
-  grid-template-columns: minmax(0, 1fr) 0.8rem minmax(0, 1fr) !important;
-  gap: 0.55rem !important;
+  grid-template-columns: minmax(0, 1fr) 1rem minmax(0, 1fr) !important;
+  column-gap: 0.5rem !important;
   align-items: center !important;
 }
 
@@ -17402,10 +17461,15 @@ body.dark-theme .master-workspace .client-reference-history {
   stroke-width: 3.2;
 }
 
+.master-workspace .agenda-header,
+.master-workspace .whatsapp-mobile-content .agenda-header {
+  gap: .15rem !important;
+}
+
 .master-workspace .agenda-toggle-strip,
 .master-workspace .whatsapp-mobile-content .agenda-toggle-strip {
   display: flex;
-  width: 100%;
+  width: calc(100% + .75rem);
   min-height: 0;
   min-width: 0;
   flex: 1 1 auto;
@@ -17429,6 +17493,7 @@ body.dark-theme .master-workspace .client-reference-history {
   width: 1.9rem;
   height: 1.9rem;
   min-height: 0;
+  margin-right: -.62rem;
   flex: 0 0 auto;
   align-items: flex-start;
   justify-content: center;
@@ -17463,24 +17528,61 @@ body.dark-theme .master-workspace .client-reference-history {
   min-width: 0;
   flex: 1 1 auto;
   align-items: center;
-  gap: .55rem;
-  overflow: hidden;
-  font-size: .76rem !important;
+  gap: .34rem .48rem;
+  overflow: visible;
+  flex-wrap: wrap;
+  font-size: .72rem !important;
   line-height: 1.15 !important;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .master-workspace .agenda-toggle-strip .agenda-count-title > span,
 .master-workspace .whatsapp-mobile-content .agenda-toggle-strip .agenda-count-title > span {
   min-width: 0;
-  flex: 0 1 auto;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  flex: 0 0 auto;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
 }
 
 .master-workspace .agenda-toggle-strip .agenda-count-title > span:first-child,
 .master-workspace .whatsapp-mobile-content .agenda-toggle-strip .agenda-count-title > span:first-child {
   flex: 0 0 auto;
+}
+
+.master-workspace .agenda-work-hours-button,
+.master-workspace .whatsapp-mobile-content .agenda-work-hours-button {
+  display: inline-flex;
+  align-items: center;
+  gap: .22rem;
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
+  border: 1px solid rgba(17, 27, 33, .12);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--textSecondary);
+  padding: .12rem .42rem;
+  font: inherit;
+  line-height: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.master-workspace .agenda-work-hours-icon,
+.master-workspace .whatsapp-mobile-content .agenda-work-hours-icon {
+  width: .78rem;
+  height: .78rem;
+  flex: 0 0 auto;
+}
+
+.master-workspace .agenda-work-hours-button:hover,
+.master-workspace .agenda-work-hours-button:focus-visible,
+.master-workspace .whatsapp-mobile-content .agenda-work-hours-button:hover,
+.master-workspace .whatsapp-mobile-content .agenda-work-hours-button:focus-visible {
+  border-color: rgba(17, 27, 33, .2);
+  background: rgba(17, 27, 33, .04);
+  outline: none;
 }
 
 .master-workspace .agenda-toggle-strip-icon,
@@ -21140,7 +21242,8 @@ body:not(.dark-theme) .master-workspace .individual-work-hours-screen .weekday-b
 
 body:not(.dark-theme) .individual-work-hours-screen .individual-work-hours-footer,
 body:not(.dark-theme) .master-workspace .individual-work-hours-screen .individual-work-hours-footer {
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .45rem !important;
   background: rgb(var(--color-surface)) !important;
 }
 
@@ -21658,7 +21761,7 @@ body:not(.dark-theme) .master-workspace .individual-schedule-screen .individual-
 
 body:not(.dark-theme) .individual-schedule-screen .individual-schedule-card,
 body:not(.dark-theme) .master-workspace .individual-schedule-screen .individual-schedule-card {
-  overflow: hidden !important;
+  overflow: visible !important;
   margin-top: 1.05rem !important;
   border: 1px solid #e2e2df !important;
   border-radius: .62rem !important;
@@ -21700,6 +21803,7 @@ body:not(.dark-theme) .master-workspace .individual-schedule-screen .individual-
 
 body:not(.dark-theme) .individual-schedule-screen .individual-calendar-month,
 body:not(.dark-theme) .master-workspace .individual-schedule-screen .individual-calendar-month {
+  overflow: visible !important;
   border: 0 !important;
   border-radius: .62rem !important;
   background: transparent !important;
@@ -22037,6 +22141,60 @@ body:not(.dark-theme) .master-workspace .schedule-exception-time-panel.weekday-b
   stroke: #606873 !important;
   fill: #606873 !important;
   opacity: 1 !important;
+}
+
+body:not(.dark-theme) .master-workspace .schedule-exception-time-panel.weekday-booksy .weekday-booksy-wheel .time-wheel-option {
+  display: grid !important;
+  min-height: 54px !important;
+  padding: 0 !important;
+  place-items: center !important;
+  line-height: 1 !important;
+}
+
+body:not(.dark-theme) .master-workspace .schedule-exception-time-panel.weekday-booksy .weekday-booksy-wheel .time-wheel-selection {
+  top: calc(50% + 0.85rem) !important;
+}
+
+body:not(.dark-theme) .master-workspace .schedule-exception-time-panel.weekday-booksy .weekday-booksy-wheel .time-range-separator {
+  display: flex !important;
+  width: 100% !important;
+  justify-content: center !important;
+  justify-self: center !important;
+  text-align: center !important;
+  transform: translateY(0.85rem) !important;
+}
+
+.master-workspace .weekday-break-time-panel .weekday-booksy-time {
+  margin-bottom: 0.45rem !important;
+}
+
+.master-workspace .weekday-break-time-panel .weekday-break-actions {
+  margin-top: 0.25rem;
+}
+
+.master-workspace .weekday-break-time-panel .weekday-break-cancel {
+  min-height: 44px !important;
+  border: 1px solid #e8eaed !important;
+  background: #ffffff !important;
+  color: #050505 !important;
+  box-shadow: none !important;
+}
+
+.master-workspace .weekday-break-time-panel .weekday-break-submit {
+  min-height: 44px !important;
+}
+
+.master-workspace .weekday-break-time-panel .weekday-break-submit::after {
+  border-width: 2px;
+}
+
+.master-workspace .weekday-break-time-panel .weekday-break-actions > button {
+  box-sizing: border-box !important;
+  width: 100% !important;
+  height: 3.05rem !important;
+  min-height: 3.05rem !important;
+  margin-top: 0 !important;
+  padding: 0 1rem !important;
 }
 
 /* Keep mobile tab headers identical to the Services tab header. */
@@ -29743,6 +29901,14 @@ body .master-workspace .schedule-exception-time-panel .schedule-exception-close-
   display: inline-flex !important;
   background: transparent !important;
   color: #ff0000 !important;
+}
+
+body .master-workspace .weekday-break-time-panel .weekday-break-actions > button,
+body .master-workspace .weekday-break-time-panel .weekday-break-actions .schedule-exception-close-time-button {
+  align-self: stretch !important;
+  height: 3.05rem !important;
+  min-height: 3.05rem !important;
+  margin-top: 0 !important;
 }
 
 @media (min-width: 768px) {

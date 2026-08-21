@@ -174,13 +174,44 @@
           "breakEnd": "14:00",
           "breaks": []
         },
-        "__scheduleMode": "weekdays"
+        "__scheduleMode": "weekdays",
+        "__dateOverrides": {
+          "2026-08-21": {
+            "enabled": true,
+            "start": "16:05",
+            "end": "19:55",
+            "breakEnabled": false,
+            "breakStart": "13:00",
+            "breakEnd": "14:00",
+            "breaks": []
+          },
+          "2026-08-22": {
+            "enabled": true,
+            "start": "10:00",
+            "end": "19:00",
+            "breakEnabled": true,
+            "breakStart": "13:00",
+            "breakEnd": "14:00",
+            "breaks": [
+              {
+                "id": "break-1787354796027-0",
+                "start": "13:00",
+                "end": "14:00"
+              },
+              {
+                "id": "break-1787354801171-1",
+                "start": "17:00",
+                "end": "17:35"
+              }
+            ]
+          }
+        }
       },
       "show_price": true,
       "min_booking_notice_min": 330,
       "max_booking_days_ahead": 30,
       "created_at": "2026-06-02T16:26:04.755Z",
-      "updated_at": "2026-08-20T22:48:03.663Z",
+      "updated_at": "2026-08-21T23:27:15.106Z",
       "cover_position_x": 50,
       "cover_position_y": 50,
       "auto_time_snap": true
@@ -3323,7 +3354,7 @@
       "is_active": true,
       "sort_order": 50,
       "created_at": "2026-07-19T18:13:59.114Z",
-      "updated_at": "2026-08-20T14:24:49.800Z"
+      "updated_at": "2026-08-21T17:13:36.708Z"
     },
     {
       "id": "35f360a2-5602-4a39-826f-14814e69d3ec",
@@ -3336,7 +3367,7 @@
       "is_active": true,
       "sort_order": 10,
       "created_at": "2026-07-19T18:13:59.124Z",
-      "updated_at": "2026-08-20T14:24:49.780Z"
+      "updated_at": "2026-08-21T17:13:36.528Z"
     },
     {
       "id": "63d81dec-4ee6-49c5-8ca6-84b9bd4ba5ee",
@@ -3349,7 +3380,7 @@
       "is_active": true,
       "sort_order": 20,
       "created_at": "2026-07-19T18:13:59.125Z",
-      "updated_at": "2026-08-20T14:24:49.785Z"
+      "updated_at": "2026-08-21T17:13:36.538Z"
     },
     {
       "id": "afb45278-bcee-4d31-884c-ee62b3a87a90",
@@ -3362,7 +3393,7 @@
       "is_active": true,
       "sort_order": 30,
       "created_at": "2026-07-19T18:13:59.126Z",
-      "updated_at": "2026-08-20T14:24:49.790Z"
+      "updated_at": "2026-08-21T17:13:36.698Z"
     },
     {
       "id": "075d6493-7797-45a3-a754-145a49c4e576",
@@ -3375,7 +3406,7 @@
       "is_active": true,
       "sort_order": 40,
       "created_at": "2026-07-19T18:13:59.128Z",
-      "updated_at": "2026-08-20T14:24:49.795Z"
+      "updated_at": "2026-08-21T17:13:36.703Z"
     }
   ],
   "subscriptions": [

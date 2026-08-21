@@ -162,6 +162,7 @@ type StoredIndividualSchedulePlan = {
 type StoredWeeklyScheduleMetadata = {
     __scheduleMode?: ScheduleMode;
     __individualPlan?: StoredIndividualSchedulePlan;
+    __dateOverrides?: Record<string, DaySchedule>;
 };
 type CalendarCell = {
     date: string;
@@ -237,12 +238,13 @@ const getBreakKey = (item: Pick<BreakPeriod, "start" | "end">) => `${item.start}
 const uniqueBreakPeriods = (breaks: BreakPeriod[]) => { const seen = new Set<string>(); return breaks.filter((item) => { const key = getBreakKey(item); if (seen.has(key))
     return false; seen.add(key); return true; }); };
 const breakPeriodsOverlap = (left: Pick<BreakPeriod, "start" | "end">, right: Pick<BreakPeriod, "start" | "end">) => intervalsOverlap(timeToMinutes(left.start), timeToMinutes(left.end), timeToMinutes(right.start), timeToMinutes(right.end));
+const hasOverlappingBreakPeriod = (breaks: BreakPeriod[], target: BreakPeriod) => breaks.some((item) => item.id !== target.id && breakPeriodsOverlap(item, target));
 const isBreakPeriodValid = (item: Pick<BreakPeriod, "start" | "end">) => timeToMinutes(item.start) < timeToMinutes(item.end);
 const getDayBreaks = (schedule: DaySchedule): BreakPeriod[] => { if (Array.isArray(schedule.breaks)) {
     return uniqueBreakPeriods(schedule.breaks.map((item, index) => ({ id: item.id || `break-${index}`, start: item.start || schedule.breakStart || "13:00", end: item.end || schedule.breakEnd || "14:00", })));
 } return schedule.breakEnabled ? [{ id: "break-0", start: schedule.breakStart || "13:00", end: schedule.breakEnd || "14:00" }] : []; };
 const withSyncedBreakFields = (schedule: DaySchedule): DaySchedule => { const breaks = getDayBreaks(schedule); return { ...schedule, breaks, breakEnabled: breaks.length > 0, breakStart: breaks[0]?.start || schedule.breakStart || "13:00", breakEnd: breaks[0]?.end || schedule.breakEnd || "14:00", }; };
-const normalizeWeeklyScheduleBreaks = (schedule: WeeklySchedule) => Object.fromEntries(Object.entries(schedule).map(([key, value]) => [key, withSyncedBreakFields({ ...value, breaks: getDayBreaks(value).filter(isBreakPeriodValid), }),])) as WeeklySchedule;
+const normalizeWeeklyScheduleBreaks = (schedule: WeeklySchedule) => Object.fromEntries(Object.entries(schedule).map(([key, value]) => key.startsWith("__") ? [key, value] : [key, withSyncedBreakFields({ ...value, breaks: getDayBreaks(value).filter(isBreakPeriodValid), }),])) as WeeklySchedule;
 const defaultWeeklySchedule = scheduleDays.reduce<WeeklySchedule>((schedule, day) => { schedule[String(day.index)] = { enabled: day.index > 0 && day.index < 6, start: "10:00", end: "20:00", breakEnabled: false, breakStart: "13:00", breakEnd: "14:00", breaks: [], }; return schedule; }, {});
 const defaultScheduleDayRule: ScheduleDayRule = { enabled: true, allDay: false, start: "09:00", end: "18:00", breakEnabled: false, breakStart: "12:00", breakEnd: "13:00", };
 const emptyService = { title: "", category: "", duration: "60", price: "", priceFrom: false, description: "", preparation: "", includedItems: [] as string[], materialName: "", materialCost: "", photoUrl: "", onlineBookingEnabled: true, active: true, calendarColor: "#0f766e", };
@@ -390,6 +392,22 @@ const buildScheduleMonths = (plan: SchedulePlan, monthCount = 3): CalendarMonth[
 } const inMonthCells = cells.filter((cell) => cell.inMonth); return { key: `${year}-${month}`, title: formatMonth(monthDate), workingDays: inMonthCells.filter((cell) => cell.rule.enabled).length, totalDays: inMonthCells.length, cells, }; }); };
 const getStoredScheduleMode = (schedule: WeeklySchedule): ScheduleMode => ((schedule as WeeklySchedule & StoredWeeklyScheduleMetadata).__scheduleMode === "cycle" ? "cycle" : "weekdays");
 const getStoredIndividualPlan = (schedule: WeeklySchedule): StoredIndividualSchedulePlan | null => { const plan = (schedule as WeeklySchedule & StoredWeeklyScheduleMetadata).__individualPlan; return plan && typeof plan.startDate === "string" ? plan : null; };
+const getStoredDateOverrides = (schedule: WeeklySchedule): Record<string, DaySchedule> => { const overrides = (schedule as WeeklySchedule & StoredWeeklyScheduleMetadata).__dateOverrides; return overrides && typeof overrides === "object" ? overrides : {}; };
+const getScheduleForDate = (date: Date, schedule: WeeklySchedule, fallbackStart = "09:00", fallbackEnd = "20:00"): DaySchedule => {
+    const weekdayKey = String(date.getDay());
+    const baseSchedule = withSyncedBreakFields({ ...defaultWeeklySchedule[weekdayKey], ...(schedule[weekdayKey] || {}), start: schedule[weekdayKey]?.start || fallbackStart, end: schedule[weekdayKey]?.end || fallbackEnd });
+    const dateOverride = getStoredDateOverrides(schedule)[formatDateKey(date)];
+    if (dateOverride)
+        return withSyncedBreakFields({ ...baseSchedule, ...dateOverride });
+    if (getStoredScheduleMode(schedule) !== "cycle")
+        return baseSchedule;
+    const storedPlan = getStoredIndividualPlan(schedule);
+    if (!storedPlan)
+        return baseSchedule;
+    const plan: SchedulePlan = { mode: "cycle", startDate: storedPlan.startDate, endDate: storedPlan.endDate || formatDateKey(addDays(parseDateKey(storedPlan.startDate), 90)), selectedWeekdays: [], cyclePreset: storedPlan.cyclePreset, customWorkDays: storedPlan.customWorkDays, customOffDays: storedPlan.customOffDays, dayRule: { ...defaultScheduleDayRule, ...baseSchedule }, dateOverrides: {} };
+    return withSyncedBreakFields({ ...baseSchedule, enabled: getCycleEnabled(date, plan) });
+};
+const formatWorkScheduleLabel = (schedule: DaySchedule) => schedule.enabled ? `${schedule.start}-${schedule.end}` : "Выходной";
 const getMonthDays = (monthDate: Date) => { const year = monthDate.getFullYear(); const month = monthDate.getMonth(); const first = new Date(year, month, 1); const last = new Date(year, month + 1, 0); const leading = (first.getDay() + 6) % 7; const days: Array<Date | null> = Array.from({ length: leading }, () => null); for (let day = 1; day <= last.getDate(); day += 1) {
     days.push(new Date(year, month, day));
 } while (days.length % 7 !== 0) {
@@ -431,7 +449,7 @@ function DraggableBottomSheetFrame({ children, labelledBy, onClose, panelClassNa
     const swipeRef = useRef<{ pointerId?: number; startX: number; startY: number; startedAt: number; dragging: boolean } | null>(null);
     const sheetRef = useRef<HTMLElement | null>(null);
     const closeTimerRef = useRef<number | null>(null);
-    useEffect(() => {
+    useLayoutEffect(() => {
         document.body.classList.add("client-bottom-sheet-lock");
         return () => {
             document.body.classList.remove("client-bottom-sheet-lock");
@@ -616,7 +634,7 @@ export default function DashboardPage() { useMobileKeyboardViewportVars(); const
     target: Section | null;
     width: number;
     direction: "next" | "prev" | null;
-}>({ target: null, width: 1, direction: null, }); const [toast, setToast] = useState(""); const [mobileCompact, setMobileCompact] = usePersistentBoolean("dashboard-mobile-compact"); const [compactAppointments, setCompactAppointments] = usePersistentBoolean("compact-appointments"); const [compactClients, setCompactClients] = usePersistentBoolean("compact-clients"); const [darkTheme, setDarkTheme] = useState(false); const [authSession, setAuthSession] = useState<AuthSession | null>(null); const [serverDataLoaded, setServerDataLoaded] = useState(false); const [monthDate, setMonthDate] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1)); const [selectedDate, setSelectedDate] = useState(() => formatDateKey(today)); const [calendarWeekDate, setCalendarWeekDate] = useState(() => formatDateKey(today)); const [appointments, setAppointments] = useState<Appointment[]>([]); const [clients, setClients] = useState<Client[]>([]); const [services, setServices] = useState<Service[]>([]); const [blockedTimes, setBlockedTimes] = useState<BlockedTime[]>([]); const [clientsLoaded, setClientsLoaded] = useState(false); const [bookingSettingsLoaded, setBookingSettingsLoaded] = useState(false); const [notificationsOpen, setNotificationsOpen] = useState(false); const [storyCreatorOpen, setStoryCreatorOpen] = useState(false); const [notificationsReady, setNotificationsReady] = useState(false); const [seenNotificationIds, setSeenNotificationIds] = useState<Set<string>>(() => new Set()); const [calendarExpanded, setCalendarExpanded] = useState(false); const [showFilters, setShowFilters] = useState(false); const [showAppointmentForm, setShowAppointmentForm] = useState(false); const [appointmentForm, setAppointmentForm] = useState(emptyAppointment); const [clientForm, setClientForm] = useState(emptyClient); const [editingClientId, setEditingClientId] = useState<string | null>(null); const [serviceForm, setServiceForm] = useState(emptyService); const [serviceFormOpen, setServiceFormOpen] = useState(false); const [serviceSaving, setServiceSaving] = useState(false); const [editingServiceId, setEditingServiceId] = useState<string | null>(null); const [serviceOverlayOpen, setServiceOverlayOpen] = useState(false); const [workStart, setWorkStart] = useState("09:00"); const [workEnd, setWorkEnd] = useState("20:00"); const [slotStepMin, setSlotStepMin] = useState(30); const [autoTimeSnap, setAutoTimeSnap] = useState(true); const [bufferMin, setBufferMin] = useState(0); const [weeklySchedule, setWeeklySchedule] = useState<WeeklySchedule>(defaultWeeklySchedule); const [blockForm, setBlockForm] = useState(() => ({ ...emptyBlock, date: formatDateKey(today) })); const [schedulePanel, setSchedulePanel] = useState<SchedulePanel>(null); const [openWeekdayEditor, setOpenWeekdayEditor] = useState<string | null>(null); const [clientFormOpen, setClientFormOpen] = useState(false); const [selectedSettingsPanel, setSelectedSettingsPanel] = useState<SettingsPanel>(null); const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null); const [subscriptionPlans, setSubscriptionPlans] = useState<SubscriptionPlan[]>([]); const [subscriptionPayments, setSubscriptionPayments] = useState<SubscriptionPayment[]>([]); const [subscriptionLoading, setSubscriptionLoading] = useState(false); const [masterProfile, setMasterProfile] = useState<MasterProfile>(defaultMasterProfile); const [accountSaving, setAccountSaving] = useState(false); const [bookingPageSettings, setBookingPageSettings] = useState<BookingPageSettings>(defaultBookingPageSettings); const [bookingPageSaving, setBookingPageSaving] = useState(false); const [bookingEnabled, setBookingEnabled] = useState(true); const clientsRequestRef = useRef<Promise<void> | null>(null); const bookingSettingsRequestRef = useRef<Promise<void> | null>(null); const deferredDashboardDataRequested = useRef(false); const [origin, setOrigin] = useState(""); const bookingPath = `/m/${masterProfile.slug || "master"}`; const bookingUrl = origin ? `${origin}${bookingPath}` : bookingPath; const loadSubscriptionData = async () => { setSubscriptionLoading(true); try {
+}>({ target: null, width: 1, direction: null, }); const [toast, setToast] = useState(""); const [mobileCompact, setMobileCompact] = usePersistentBoolean("dashboard-mobile-compact"); const [compactAppointments, setCompactAppointments] = usePersistentBoolean("compact-appointments"); const [compactClients, setCompactClients] = usePersistentBoolean("compact-clients"); const [darkTheme, setDarkTheme] = useState(false); const [authSession, setAuthSession] = useState<AuthSession | null>(null); const [serverDataLoaded, setServerDataLoaded] = useState(false); const [monthDate, setMonthDate] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1)); const [selectedDate, setSelectedDate] = useState(() => formatDateKey(today)); const [calendarWeekDate, setCalendarWeekDate] = useState(() => formatDateKey(today)); const [appointments, setAppointments] = useState<Appointment[]>([]); const [clients, setClients] = useState<Client[]>([]); const [services, setServices] = useState<Service[]>([]); const [blockedTimes, setBlockedTimes] = useState<BlockedTime[]>([]); const [clientsLoaded, setClientsLoaded] = useState(false); const [bookingSettingsLoaded, setBookingSettingsLoaded] = useState(false); const [notificationsOpen, setNotificationsOpen] = useState(false); const [storyCreatorOpen, setStoryCreatorOpen] = useState(false); const [notificationsReady, setNotificationsReady] = useState(false); const [seenNotificationIds, setSeenNotificationIds] = useState<Set<string>>(() => new Set()); const [calendarExpanded, setCalendarExpanded] = useState(false); const [showFilters, setShowFilters] = useState(false); const [showAppointmentForm, setShowAppointmentForm] = useState(false); const [appointmentForm, setAppointmentForm] = useState(emptyAppointment); const [clientForm, setClientForm] = useState(emptyClient); const [editingClientId, setEditingClientId] = useState<string | null>(null); const [serviceForm, setServiceForm] = useState(emptyService); const [serviceFormOpen, setServiceFormOpen] = useState(false); const [serviceSaving, setServiceSaving] = useState(false); const [editingServiceId, setEditingServiceId] = useState<string | null>(null); const [serviceOverlayOpen, setServiceOverlayOpen] = useState(false); const [workStart, setWorkStart] = useState("09:00"); const [workEnd, setWorkEnd] = useState("20:00"); const [slotStepMin, setSlotStepMin] = useState(30); const [autoTimeSnap, setAutoTimeSnap] = useState(true); const [bufferMin, setBufferMin] = useState(0); const [weeklySchedule, setWeeklySchedule] = useState<WeeklySchedule>(defaultWeeklySchedule); const [blockForm, setBlockForm] = useState(() => ({ ...emptyBlock, date: formatDateKey(today) })); const [schedulePanel, setSchedulePanel] = useState<SchedulePanel>(null); const [openWeekdayEditor, setOpenWeekdayEditor] = useState<string | null>(null); const [openIndividualWorkHoursEditor, setOpenIndividualWorkHoursEditor] = useState(false); const [selectedWorkHoursDate, setSelectedWorkHoursDate] = useState<string | null>(null); const [selectedWorkHoursReturnSection, setSelectedWorkHoursReturnSection] = useState<Section | null>(null); const [clientFormOpen, setClientFormOpen] = useState(false); const [selectedSettingsPanel, setSelectedSettingsPanel] = useState<SettingsPanel>(null); const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null); const [subscriptionPlans, setSubscriptionPlans] = useState<SubscriptionPlan[]>([]); const [subscriptionPayments, setSubscriptionPayments] = useState<SubscriptionPayment[]>([]); const [subscriptionLoading, setSubscriptionLoading] = useState(false); const [masterProfile, setMasterProfile] = useState<MasterProfile>(defaultMasterProfile); const [accountSaving, setAccountSaving] = useState(false); const [bookingPageSettings, setBookingPageSettings] = useState<BookingPageSettings>(defaultBookingPageSettings); const [bookingPageSaving, setBookingPageSaving] = useState(false); const [bookingEnabled, setBookingEnabled] = useState(true); const clientsRequestRef = useRef<Promise<void> | null>(null); const bookingSettingsRequestRef = useRef<Promise<void> | null>(null); const deferredDashboardDataRequested = useRef(false); const [origin, setOrigin] = useState(""); const bookingPath = `/m/${masterProfile.slug || "master"}`; const bookingUrl = origin ? `${origin}${bookingPath}` : bookingPath; const loadSubscriptionData = async () => { setSubscriptionLoading(true); try {
     const [subscriptionResponse, plansResponse] = await Promise.all([fetch("/api/subscription"), fetch("/api/subscription/plans")]);
     const subscriptionData = subscriptionResponse.ok ? ((await subscriptionResponse.json()) as {
         success: boolean;
@@ -689,7 +707,7 @@ finally {
 }) : { success: false }; const blockedTimesData = blockedTimesResponse.ok ? ((await blockedTimesResponse.json()) as {
     success: boolean;
     blockedTimes?: BlockedTime[];
-}) : { success: false }; setAuthSession(meData.user); setServices(servicesData.success ? (servicesData.services || []).map((service) => ({ ...normalizeService(service), photoUrl: getServicePayloadPhotoUrl(service), })) : []); setAppointments(appointmentsData.success ? appointmentsData.appointments || [] : []); setBlockedTimes(blockedTimesData.success ? blockedTimesData.blockedTimes || [] : []); setWorkStart(meData.master.workStart || "10:00"); setWorkEnd(meData.master.workEnd || "20:00"); setSlotStepMin(Number(meData.master.slotStepMin) || 30); setAutoTimeSnap(meData.master.autoTimeSnap !== false); setBufferMin(Number(meData.master.bufferMin) || 0); setBookingEnabled(meData.master.bookingEnabled !== false); setWeeklySchedule(() => { const enabledDays = new Set((meData.master?.workDays || [1, 2, 3, 4, 5]).map(Number)); const saved = meData.master?.weeklySchedule || {}; return scheduleDays.reduce<WeeklySchedule>((schedule, day) => { const key = String(day.index); schedule[key] = withSyncedBreakFields({ ...defaultWeeklySchedule[key], ...(saved[key] || {}), enabled: saved[key]?.enabled ?? enabledDays.has(day.index), }); return schedule; }, {}); }); setMasterProfile({ ...defaultMasterProfile, displayName: meData.master.name, slug: resolveLatinSlug(meData.master.slug, normalizeEmailSlug(meData.user.email)), }); setServerDataLoaded(true); loadDeferredDashboardData(); }; useEffect(() => { const loadSession = async () => { try {
+}) : { success: false }; setAuthSession(meData.user); setServices(servicesData.success ? (servicesData.services || []).map((service) => ({ ...normalizeService(service), photoUrl: getServicePayloadPhotoUrl(service), })) : []); setAppointments(appointmentsData.success ? appointmentsData.appointments || [] : []); setBlockedTimes(blockedTimesData.success ? blockedTimesData.blockedTimes || [] : []); setWorkStart(meData.master.workStart || "10:00"); setWorkEnd(meData.master.workEnd || "20:00"); setSlotStepMin(Number(meData.master.slotStepMin) || 30); setAutoTimeSnap(meData.master.autoTimeSnap !== false); setBufferMin(Number(meData.master.bufferMin) || 0); setBookingEnabled(meData.master.bookingEnabled !== false); setWeeklySchedule(() => { const enabledDays = new Set((meData.master?.workDays || [1, 2, 3, 4, 5]).map(Number)); const saved = meData.master?.weeklySchedule || {}; const metadata = saved as WeeklySchedule & StoredWeeklyScheduleMetadata; const nextSchedule = scheduleDays.reduce<WeeklySchedule>((schedule, day) => { const key = String(day.index); schedule[key] = withSyncedBreakFields({ ...defaultWeeklySchedule[key], ...(saved[key] || {}), enabled: saved[key]?.enabled ?? enabledDays.has(day.index), }); return schedule; }, {}); return { ...nextSchedule, ...(metadata.__scheduleMode ? { __scheduleMode: metadata.__scheduleMode } : {}), ...(metadata.__individualPlan ? { __individualPlan: metadata.__individualPlan } : {}), ...(metadata.__dateOverrides ? { __dateOverrides: metadata.__dateOverrides } : {}), } as WeeklySchedule; }); setMasterProfile({ ...defaultMasterProfile, displayName: meData.master.name, slug: resolveLatinSlug(meData.master.slug, normalizeEmailSlug(meData.user.email)), }); setServerDataLoaded(true); loadDeferredDashboardData(); }; useEffect(() => { const loadSession = async () => { try {
     await loadServerData();
 }
 catch {
@@ -729,7 +747,10 @@ catch { /* Background refresh should stay quiet; the main data load still report
     void loadClients(); }, [authSession, clientsLoaded, section, serverDataLoaded, showAppointmentForm]); useEffect(() => { if (!authSession || !serverDataLoaded || bookingSettingsLoaded)
     return; if (section === "\u0421\u0442\u0440\u0430\u043d\u0438\u0446\u0430 \u0437\u0430\u043f\u0438\u0441\u0438" || section === "\u041d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438")
     void loadBookingPageSettings(); }, [authSession, bookingSettingsLoaded, section, serverDataLoaded]); useEffect(() => { if (section !== "Главная")
-    setNotificationsOpen(false); }, [section]); const selectedAppointments = useMemo(() => visibleAppointments.filter((item) => item.date === selectedDate).sort((a, b) => a.time.localeCompare(b.time)), [selectedDate, visibleAppointments]); const selectedBlockedTimes = useMemo(() => blockedTimes.filter((item) => item.date === selectedDate).sort((a, b) => a.start.localeCompare(b.start)), [blockedTimes, selectedDate]); const todayKey = formatDateKey(today); const todayFreeSlots = useMemo<FreeSlot[]>(() => { const weekdayKey = String(today.getDay()); const daySchedule = weeklySchedule[weekdayKey]; const dayStart = timeToMinutes(daySchedule?.start || workStart); const dayEnd = timeToMinutes(daySchedule?.end || workEnd); if (daySchedule?.enabled === false || dayStart >= dayEnd)
+    setNotificationsOpen(false); }, [section]); useEffect(() => { if (schedulePanel !== "individual") {
+    setOpenIndividualWorkHoursEditor(false);
+    setSelectedWorkHoursDate(null);
+} }, [schedulePanel]); const selectedDateWorkSchedule = useMemo(() => getScheduleForDate(selectedDateObject, weeklySchedule, workStart, workEnd), [selectedDateObject, weeklySchedule, workEnd, workStart]); const selectedAppointments = useMemo(() => visibleAppointments.filter((item) => item.date === selectedDate).sort((a, b) => a.time.localeCompare(b.time)), [selectedDate, visibleAppointments]); const selectedBlockedTimes = useMemo(() => blockedTimes.filter((item) => item.date === selectedDate).sort((a, b) => a.start.localeCompare(b.start)), [blockedTimes, selectedDate]); const todayKey = formatDateKey(today); const todayFreeSlots = useMemo<FreeSlot[]>(() => { const daySchedule = getScheduleForDate(today, weeklySchedule, workStart, workEnd); const dayStart = timeToMinutes(daySchedule?.start || workStart); const dayEnd = timeToMinutes(daySchedule?.end || workEnd); if (daySchedule?.enabled === false || dayStart >= dayEnd)
     return []; const busyIntervals = [...getDayBreaks(daySchedule || { enabled: true, start: workStart, end: workEnd, breakEnabled: false, breakStart: "13:00", breakEnd: "14:00", breaks: [], }).filter(isBreakPeriodValid).map((item) => ({ start: timeToMinutes(item.start), end: timeToMinutes(item.end) })), ...blockedTimes.filter((item) => item.date === todayKey).map((item) => ({ start: timeToMinutes(item.start), end: timeToMinutes(item.end) })), ...visibleAppointments.filter((item) => item.date === todayKey).map((item) => { const start = timeToMinutes(item.time); return { start, end: start + getAppointmentDuration(item, services) }; }),].map((item) => ({ start: Math.max(dayStart, item.start), end: Math.min(dayEnd, item.end) })).filter((item) => item.start < item.end).sort((left, right) => left.start - right.start); const freeSlots: FreeSlot[] = []; let cursor = dayStart; busyIntervals.forEach((interval) => { if (interval.start - cursor >= slotStepMin) {
     freeSlots.push({ start: minutesToTime(cursor), end: minutesToTime(interval.start) });
 } cursor = Math.max(cursor, interval.end); }); if (dayEnd - cursor >= slotStepMin) {
@@ -739,7 +760,7 @@ catch { /* Background refresh should stay quiet; the main data load still report
     window.cancelAnimationFrame(dashboardDragFrame.current);
 } dashboardDragFrame.current = window.requestAnimationFrame(() => { const previewOffset = direction === "prev" ? -width + offsetX : width + offsetX; stage.style.setProperty("--dashboard-drag-offset", `${offsetX}px`); stage.style.setProperty("--dashboard-preview-offset", `${previewOffset}px`); dashboardDragFrame.current = null; }); }; const resetDashboardDrag = () => { dashboardDragRef.current = { target: null, offsetX: 0, width: 1, direction: null }; setDashboardDrag({ target: null, width: 1, direction: null }); updateDashboardDragStyles(0, 1, null); }; const lockClientFormNavigation = () => { clientFormNavigationLockUntil.current = Date.now() + 800; dashboardSwipeStart.current = null; resetDashboardDrag(); }; const shouldBlockNavigationFromClientForm = (next: Section) => section === "Клиенты" && next !== "Клиенты" && (clientFormOpen || Date.now() < clientFormNavigationLockUntil.current); const setClientFormOpenFromClients: React.Dispatch<React.SetStateAction<boolean>> = (value) => { const next = typeof value === "function" ? value(clientFormOpen) : value; if (!next && clientFormOpen)
     lockClientFormNavigation(); setClientFormOpen(next); }; const resolveNextSection = (value: React.SetStateAction<Section>) => (typeof value === "function" ? value(section) : value); const commitSectionNavigation = (next: Section, direction: "next" | "prev" | "idle") => { startTransition(() => { setDashboardTabDirection(next !== section ? direction : "idle"); setSection(next); }); }; const navigateSection: React.Dispatch<React.SetStateAction<Section>> = (value) => { const next = resolveNextSection(value); if (shouldBlockNavigationFromClientForm(next))
-    return; commitSectionNavigation(next, "idle"); }; const navigateSectionWithSwipe = (value: React.SetStateAction<Section>, direction: "next" | "prev") => { const next = typeof value === "function" ? value(section) : value; if (shouldBlockNavigationFromClientForm(next))
+    return; commitSectionNavigation(next, "idle"); }; const closeSelectedDateWorkHours = () => { const returnSection = selectedWorkHoursReturnSection || "Главная"; setDashboardTabDirection("idle"); setSection(returnSection); setSchedulePanel(null); setOpenIndividualWorkHoursEditor(false); setSelectedWorkHoursDate(null); setSelectedWorkHoursReturnSection(null); }; const openSelectedDateWorkHours = () => { setOpenWeekdayEditor(null); setSelectedWorkHoursReturnSection(section); setSelectedWorkHoursDate(selectedDate); setOpenIndividualWorkHoursEditor(true); setSchedulePanel("individual"); }; const navigateSectionWithSwipe = (value: React.SetStateAction<Section>, direction: "next" | "prev") => { const next = typeof value === "function" ? value(section) : value; if (shouldBlockNavigationFromClientForm(next))
     return; commitSectionNavigation(next, direction); }; const isBottomSheetOpen = () => typeof document !== "undefined" && Boolean(document.querySelector(".client-bottom-sheet-screen-open")); const handleDashboardTouchStart = (event: TouchEvent<HTMLElement>) => { if (selectedSettingsPanel || isBottomSheetOpen() || window.innerWidth >= 768 || event.touches.length !== 1) {
     dashboardSwipeStart.current = null;
     resetDashboardDrag();
@@ -871,7 +892,7 @@ finally {
     weeklySchedule?: WeeklySchedule;
     scheduleMode?: ScheduleMode;
     individualPlan?: StoredIndividualSchedulePlan;
-}) => { const sourceWeeklySchedule = overrides?.weeklySchedule ?? weeklySchedule; const normalizedWeeklySchedule = normalizeWeeklyScheduleBreaks(sourceWeeklySchedule); const schedulePayload = { ...normalizedWeeklySchedule, __scheduleMode: overrides?.scheduleMode ?? getStoredScheduleMode(sourceWeeklySchedule), ...(overrides?.individualPlan ? { __individualPlan: overrides.individualPlan } : getStoredIndividualPlan(sourceWeeklySchedule) ? { __individualPlan: getStoredIndividualPlan(sourceWeeklySchedule)! } : {}), } as unknown as WeeklySchedule; setWeeklySchedule(schedulePayload); const workDays = scheduleDays.filter((day) => normalizedWeeklySchedule[String(day.index)]?.enabled).map((day) => day.index); void fetch("/api/schedule", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ bookingEnabled, autoTimeSnap: overrides?.autoTimeSnap ?? autoTimeSnap, bufferMin, slotStepMin, weeklySchedule: schedulePayload, workDays, workEnd, workStart, maxBookingDaysAhead: bookingPageSettings.maxBookingDaysAhead, timezone: bookingPageSettings.timezone, }), }).then(async (response) => { const data = (await response.json()) as {
+}) => { const sourceWeeklySchedule = overrides?.weeklySchedule ?? weeklySchedule; const normalizedWeeklySchedule = normalizeWeeklyScheduleBreaks(sourceWeeklySchedule); const dateOverrides = getStoredDateOverrides(sourceWeeklySchedule); const schedulePayload = { ...normalizedWeeklySchedule, __scheduleMode: overrides?.scheduleMode ?? getStoredScheduleMode(sourceWeeklySchedule), ...(overrides?.individualPlan ? { __individualPlan: overrides.individualPlan } : getStoredIndividualPlan(sourceWeeklySchedule) ? { __individualPlan: getStoredIndividualPlan(sourceWeeklySchedule)! } : {}), ...(Object.keys(dateOverrides).length ? { __dateOverrides: dateOverrides } : {}), } as unknown as WeeklySchedule; setWeeklySchedule(schedulePayload); const workDays = scheduleDays.filter((day) => normalizedWeeklySchedule[String(day.index)]?.enabled).map((day) => day.index); void fetch("/api/schedule", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ bookingEnabled, autoTimeSnap: overrides?.autoTimeSnap ?? autoTimeSnap, bufferMin, slotStepMin, weeklySchedule: schedulePayload, workDays, workEnd, workStart, maxBookingDaysAhead: bookingPageSettings.maxBookingDaysAhead, timezone: bookingPageSettings.timezone, }), }).then(async (response) => { const data = (await response.json()) as {
     success: boolean;
     error?: string;
 }; if (!response.ok || !data.success)
@@ -973,7 +994,7 @@ catch (error) {
     blockedTime?: BlockedTime;
     error?: string;
 }; if (!response.ok || !data.success || !data.blockedTime)
-    throw new Error(data.error || "Не удалось создать блокировку"); rememberSeenNotification(`event:${data.blockedTime.id}`); setBlockedTimes((current) => current.map((item) => (item.id === optimisticBlock.id ? data.blockedTime! : item))); }).catch((error) => { setBlockedTimes(previousBlockedTimes); showToast(error instanceof Error ? error.message : "Не удалось создать блокировку"); }); }; const deleteBlockedTime = async (id: string) => { await fetch(`/api/blocked_times?id=${encodeURIComponent(id)}`, { method: "DELETE" }); setBlockedTimes((current) => current.filter((item) => item.id !== id)); showToast("Блокировка удалена"); }; const getDashboardContentClassName = (view: Section, extra = "") => `whatsapp-mobile-content dashboard-tab-transition ${extra} min-w-0 space-y-2 px-2 pb-4 md:space-y-5 md:px-0 md:pb-0 ${view === "Главная" ? "" : "dashboard-wide-tab"} ${view === "Услуги" ? "services-tab" : ""} ${view === "Статистика" ? "statistics-tab" : ""} ${view === "Клиенты" ? "clients-tab" : ""} ${mobileCompact ? "mobile-compact" : ""}`; const renderDashboardSection = (view: Section) => (<> <div className={`hidden justify-end md:flex ${view === "Финансы" ? "md:hidden" : ""}`}> <SettingsQuickButton active={view === "Настройки"} setSection={navigateSection}/> </div> {view === "Главная" && (<HomeSection activeServices={activeServices.length} appointments={selectedAppointments} calendarAppointments={appointments} calendarBlockedTimes={blockedTimes} blockedTimes={selectedBlockedTimes} clients={clients} compactAppointments={compactAppointments} deleteAppointment={deleteAppointment} updateAppointment={updateAppointment} syncAppointmentClientNote={syncAppointmentClientNote} formatSelectedDate={formatLongDate(selectedDateObject)} monthDate={monthDate} monthDays={monthDays} onToggleNotifications={() => setNotificationsOpen((current) => !current)} bookingUrl={bookingUrl} selectedDate={selectedDate} selectedWeekDays={selectedWeekDays} services={services} setStoryCreatorOpen={setStoryCreatorOpen} setAppointmentForm={setAppointmentForm} setSelectedDate={selectCalendarDate} setShowAppointmentForm={setShowAppointmentForm} showAppointmentForm={showAppointmentForm} showFilters={showFilters} showToast={showToast} storyCreatorOpen={storyCreatorOpen} storyDateLabel={formatLongDate(today)} todayFreeSlots={todayFreeSlots} timeSlots={timeSlots} appointmentForm={appointmentForm} addAppointment={addAppointment} changeWeek={changeWeek} changeMonth={changeMonth} selectToday={selectToday} setCalendarExpanded={setCalendarExpanded} setCompactAppointments={setCompactAppointments} setShowFilters={setShowFilters} unreadNotificationsCount={unreadNotificationsCount} calendarExpanded={calendarExpanded} calendarWeekDate={calendarWeekDate}/>)} {view === "Услуги" && (<ServicesSection addService={addService} appointments={visibleAppointments} cancelServiceEdit={cancelServiceEdit} deleteService={deleteService} editService={editService} editingServiceId={editingServiceId} serviceForm={serviceForm} serviceFormOpen={serviceFormOpen} serviceSaving={serviceSaving} services={services} setServiceOverlayOpen={setServiceOverlayOpen} setServiceFormOpen={setServiceFormOpen} setServiceForm={setServiceForm} previewServiceColor={(serviceId, color) => { setServices((current) => current.map((service) => (service.id === serviceId ? { ...service, calendarColor: color } : service))); }} toggleService={toggleService}/>)} {view === "График работы" && (<ScheduleSection addBlockedTime={addBlockedTime} blockForm={blockForm} blockedTimes={blockedTimes} bookingEnabled={bookingEnabled} bookingPageSettings={bookingPageSettings} autoTimeSnap={autoTimeSnap} bufferMin={bufferMin} deleteBlockedTime={deleteBlockedTime} openWeekdayEditor={openWeekdayEditor} saveBookingPageSettings={saveBookingPageSettings} saveSchedule={saveSchedule} setBlockForm={setBlockForm} setAutoTimeSnap={setAutoTimeSnap} setBookingPageSettings={setBookingPageSettings} setBufferMin={setBufferMin} setBookingEnabled={setBookingEnabled} setOpenWeekdayEditor={setOpenWeekdayEditor} setSchedulePanel={setSchedulePanel} setSlotStepMin={setSlotStepMin} setWeeklySchedule={setWeeklySchedule} setWorkEnd={setWorkEnd} setWorkStart={setWorkStart} showToast={showToast} schedulePanel={schedulePanel} slotStepMin={slotStepMin} weeklySchedule={weeklySchedule} workEnd={workEnd} workStart={workStart}/>)} {view === "Статистика" && (<StatisticsSection appointments={appointments} activeServices={activeServices.length} blockedTimes={blockedTimes} services={services} totalRevenue={totalRevenue}/>)} {view === "Страница записи" && (<BookingPageSettingsSection bookingPageSaving={bookingPageSaving} bookingPageSettings={bookingPageSettings} bookingUrl={bookingUrl} deleteBookingImage={deleteBookingImage} masterName={masterProfile.displayName || authSession?.name || "Мастер"} onBack={() => navigateSection("Настройки")} saveBookingPageSettings={saveBookingPageSettings} services={services} setBookingPageSettings={setBookingPageSettings} uploadBookingImage={uploadBookingImage}/>)} {view === "Аналитика" && (<AnalyticsSection appointments={appointments} activeServices={activeServices.length} blockedTimes={blockedTimes} services={services}/>)} {view === "Финансы" && (<FinanceSection appointments={visibleAppointments} services={services} totalRevenue={totalRevenue}/>)} {view === "Клиенты" && (<ClientsSection appointments={appointments} cancelClientEdit={cancelClientEdit} clientForm={clientForm} clientFormOpen={clientFormOpen} compactClients={compactClients} clients={clients} deleteClient={deleteClient} editClient={editClient} editingClientId={editingClientId} saveClient={saveClient} services={services} setCompactClients={setCompactClients} setClientForm={setClientForm} setClientFormOpen={setClientFormOpenFromClients}/>)} {view === "Настройки" && (<SettingsSection activeServices={activeServices.length} accountSaving={accountSaving} appointments={visibleAppointments} blockedTimes={blockedTimes} bookingPageSaving={bookingPageSaving} bookingPageSettings={bookingPageSettings} email={authSession?.email || ""} bookingUrl={bookingUrl} copyLink={copyLink} logout={logout} masterProfile={masterProfile} darkTheme={darkTheme} mobileCompact={mobileCompact} saveBookingPageSettings={saveBookingPageSettings} saveMasterProfile={saveMasterProfile} selectedSettingsPanel={selectedSettingsPanel} services={services} setBookingPageSettings={setBookingPageSettings} setSelectedSettingsPanel={setSelectedSettingsPanel} setSection={navigateSection} setMasterProfile={setMasterProfile} setDarkTheme={setDarkTheme} setMobileCompact={setMobileCompact} subscription={subscription} subscriptionLoading={subscriptionLoading} subscriptionPayments={subscriptionPayments} subscriptionPlans={subscriptionPlans} reloadSubscription={loadSubscriptionData} totalRevenue={totalRevenue}/>)} </>); const dashboardDragActive = Boolean(dashboardDrag.target); const dashboardCurrentStyle: CSSProperties | undefined = dashboardDragActive ? { transform: "translate3d(var(--dashboard-drag-offset, 0px), 0, 0)" } : undefined; const dashboardPreviewStyle: CSSProperties | undefined = dashboardDragActive ? { transform: "translate3d(var(--dashboard-preview-offset, 100vw), 0, 0)" } : undefined; const serviceFullscreenActive = section === "Услуги" && (serviceFormOpen || serviceOverlayOpen); const shouldShowMobileHeader = (view: Section) => !(view === "Услуги" && serviceFullscreenActive); const renderDashboardHeader = (view: Section) => shouldShowMobileHeader(view) ? (<MobileWhatsAppHeader appointmentsCount={appointments.length} clientsCount={clients.length} onAddClient={() => { if (editingClientId)
+    throw new Error(data.error || "Не удалось создать блокировку"); rememberSeenNotification(`event:${data.blockedTime.id}`); setBlockedTimes((current) => current.map((item) => (item.id === optimisticBlock.id ? data.blockedTime! : item))); }).catch((error) => { setBlockedTimes(previousBlockedTimes); showToast(error instanceof Error ? error.message : "Не удалось создать блокировку"); }); }; const deleteBlockedTime = async (id: string) => { await fetch(`/api/blocked_times?id=${encodeURIComponent(id)}`, { method: "DELETE" }); setBlockedTimes((current) => current.filter((item) => item.id !== id)); showToast("Блокировка удалена"); }; const getDashboardContentClassName = (view: Section, extra = "") => `whatsapp-mobile-content dashboard-tab-transition ${extra} min-w-0 space-y-2 px-2 pb-4 md:space-y-5 md:px-0 md:pb-0 ${view === "Главная" ? "" : "dashboard-wide-tab"} ${view === "Услуги" ? "services-tab" : ""} ${view === "Статистика" ? "statistics-tab" : ""} ${view === "Клиенты" ? "clients-tab" : ""} ${mobileCompact ? "mobile-compact" : ""}`; const renderDashboardSection = (view: Section) => (<> <div className={`hidden justify-end md:flex ${view === "Финансы" ? "md:hidden" : ""}`}> <SettingsQuickButton active={view === "Настройки"} setSection={navigateSection}/> </div> {view === "Главная" && (<HomeSection activeServices={activeServices.length} appointments={selectedAppointments} calendarAppointments={appointments} calendarBlockedTimes={blockedTimes} blockedTimes={selectedBlockedTimes} clients={clients} compactAppointments={compactAppointments} deleteAppointment={deleteAppointment} updateAppointment={updateAppointment} syncAppointmentClientNote={syncAppointmentClientNote} formatSelectedDate={formatLongDate(selectedDateObject)} monthDate={monthDate} monthDays={monthDays} onToggleNotifications={() => setNotificationsOpen((current) => !current)} bookingUrl={bookingUrl} selectedDate={selectedDate} selectedWeekDays={selectedWeekDays} services={services} setStoryCreatorOpen={setStoryCreatorOpen} setAppointmentForm={setAppointmentForm} setSelectedDate={selectCalendarDate} setShowAppointmentForm={setShowAppointmentForm} showAppointmentForm={showAppointmentForm} showFilters={showFilters} showToast={showToast} storyCreatorOpen={storyCreatorOpen} storyDateLabel={formatLongDate(today)} todayFreeSlots={todayFreeSlots} timeSlots={timeSlots} appointmentForm={appointmentForm} addAppointment={addAppointment} changeWeek={changeWeek} changeMonth={changeMonth} selectToday={selectToday} setCalendarExpanded={setCalendarExpanded} setCompactAppointments={setCompactAppointments} setShowFilters={setShowFilters} unreadNotificationsCount={unreadNotificationsCount} calendarExpanded={calendarExpanded} calendarWeekDate={calendarWeekDate} selectedDateWorkSchedule={selectedDateWorkSchedule} onEditSelectedWorkHours={openSelectedDateWorkHours}/>)} {view === "Услуги" && (<ServicesSection addService={addService} appointments={visibleAppointments} cancelServiceEdit={cancelServiceEdit} deleteService={deleteService} editService={editService} editingServiceId={editingServiceId} serviceForm={serviceForm} serviceFormOpen={serviceFormOpen} serviceSaving={serviceSaving} services={services} setServiceOverlayOpen={setServiceOverlayOpen} setServiceFormOpen={setServiceFormOpen} setServiceForm={setServiceForm} previewServiceColor={(serviceId, color) => { setServices((current) => current.map((service) => (service.id === serviceId ? { ...service, calendarColor: color } : service))); }} toggleService={toggleService}/>)} {(view === "График работы" || Boolean(selectedWorkHoursDate)) && (<ScheduleSection addBlockedTime={addBlockedTime} blockForm={blockForm} blockedTimes={blockedTimes} bookingEnabled={bookingEnabled} bookingPageSettings={bookingPageSettings} autoTimeSnap={autoTimeSnap} bufferMin={bufferMin} deleteBlockedTime={deleteBlockedTime} openIndividualWorkHoursEditor={openIndividualWorkHoursEditor} openWeekdayEditor={openWeekdayEditor} selectedWorkHoursDate={selectedWorkHoursDate} onCloseSelectedWorkHours={closeSelectedDateWorkHours} saveBookingPageSettings={saveBookingPageSettings} saveSchedule={saveSchedule} setBlockForm={setBlockForm} setAutoTimeSnap={setAutoTimeSnap} setBookingPageSettings={setBookingPageSettings} setBufferMin={setBufferMin} setBookingEnabled={setBookingEnabled} setOpenWeekdayEditor={setOpenWeekdayEditor} setSchedulePanel={setSchedulePanel} setSlotStepMin={setSlotStepMin} setWeeklySchedule={setWeeklySchedule} setWorkEnd={setWorkEnd} setWorkStart={setWorkStart} showToast={showToast} schedulePanel={schedulePanel} slotStepMin={slotStepMin} weeklySchedule={weeklySchedule} workEnd={workEnd} workStart={workStart}/>)} {view === "Статистика" && (<StatisticsSection appointments={appointments} activeServices={activeServices.length} blockedTimes={blockedTimes} services={services} totalRevenue={totalRevenue}/>)} {view === "Страница записи" && (<BookingPageSettingsSection bookingPageSaving={bookingPageSaving} bookingPageSettings={bookingPageSettings} bookingUrl={bookingUrl} deleteBookingImage={deleteBookingImage} masterName={masterProfile.displayName || authSession?.name || "Мастер"} onBack={() => navigateSection("Настройки")} saveBookingPageSettings={saveBookingPageSettings} services={services} setBookingPageSettings={setBookingPageSettings} uploadBookingImage={uploadBookingImage}/>)} {view === "Аналитика" && (<AnalyticsSection appointments={appointments} activeServices={activeServices.length} blockedTimes={blockedTimes} services={services}/>)} {view === "Финансы" && (<FinanceSection appointments={visibleAppointments} services={services} totalRevenue={totalRevenue}/>)} {view === "Клиенты" && (<ClientsSection appointments={appointments} cancelClientEdit={cancelClientEdit} clientForm={clientForm} clientFormOpen={clientFormOpen} compactClients={compactClients} clients={clients} deleteClient={deleteClient} editClient={editClient} editingClientId={editingClientId} saveClient={saveClient} services={services} setCompactClients={setCompactClients} setClientForm={setClientForm} setClientFormOpen={setClientFormOpenFromClients}/>)} {view === "Настройки" && (<SettingsSection activeServices={activeServices.length} accountSaving={accountSaving} appointments={visibleAppointments} blockedTimes={blockedTimes} bookingPageSaving={bookingPageSaving} bookingPageSettings={bookingPageSettings} email={authSession?.email || ""} bookingUrl={bookingUrl} copyLink={copyLink} logout={logout} masterProfile={masterProfile} darkTheme={darkTheme} mobileCompact={mobileCompact} saveBookingPageSettings={saveBookingPageSettings} saveMasterProfile={saveMasterProfile} selectedSettingsPanel={selectedSettingsPanel} services={services} setBookingPageSettings={setBookingPageSettings} setSelectedSettingsPanel={setSelectedSettingsPanel} setSection={navigateSection} setMasterProfile={setMasterProfile} setDarkTheme={setDarkTheme} setMobileCompact={setMobileCompact} subscription={subscription} subscriptionLoading={subscriptionLoading} subscriptionPayments={subscriptionPayments} subscriptionPlans={subscriptionPlans} reloadSubscription={loadSubscriptionData} totalRevenue={totalRevenue}/>)} </>); const dashboardDragActive = Boolean(dashboardDrag.target); const dashboardCurrentStyle: CSSProperties | undefined = dashboardDragActive ? { transform: "translate3d(var(--dashboard-drag-offset, 0px), 0, 0)" } : undefined; const dashboardPreviewStyle: CSSProperties | undefined = dashboardDragActive ? { transform: "translate3d(var(--dashboard-preview-offset, 100vw), 0, 0)" } : undefined; const serviceFullscreenActive = section === "Услуги" && (serviceFormOpen || serviceOverlayOpen); const shouldShowMobileHeader = (view: Section) => !(view === "Услуги" && serviceFullscreenActive); const renderDashboardHeader = (view: Section) => shouldShowMobileHeader(view) ? (<MobileWhatsAppHeader appointmentsCount={appointments.length} clientsCount={clients.length} onAddClient={() => { if (editingClientId)
     cancelClientEdit(); setClientForm(emptyClient); setClientFormOpen(true); }} onAddService={() => { if (editingServiceId)
     cancelServiceEdit(); setServiceFormOpen(true); }} onMarkNotificationsRead={markNotificationsRead} notificationsOpen={notificationsOpen} selectedDate={selectedDate} selectedWeekDays={selectedWeekDays} section={view} servicesCount={activeServices.length} setNotificationsOpen={setNotificationsOpen} setSelectedDate={selectCalendarDate} setSection={navigateSection} unreadNotificationsCount={unreadNotificationsCount}/>) : null; return (<main ref={dashboardSwipeStageRef} className="master-workspace whatsapp-mobile-shell min-h-screen bg-transparent pb-28 md:pb-0" onTouchCancel={() => { dashboardSwipeStart.current = null; resetDashboardDrag(); }} onTouchEnd={handleDashboardTouchEnd} onTouchMove={handleDashboardTouchMove} onTouchStart={handleDashboardTouchStart}> <div className={`master-layout dashboard-swipe-stage mx-auto grid w-full max-w-[1600px] gap-0 px-0 py-0 md:grid-cols-[280px_1fr] md:gap-6 md:px-4 md:py-6 ${dashboardDragActive ? "dashboard-swipe-dragging" : ""}`}> <aside className="master-sidebar saas-card pattern-surface sticky top-6 hidden h-fit p-3 md:block"> <p className="px-3 py-3 text-navigationTitle text-textPrimary">Beauty Time</p> <nav className="space-y-1"> {nav.map((item) => { const active = section === item || (item === "Статистика" && (section === "Аналитика" || section === "Финансы")); return (<button key={item} type="button" onClick={() => navigateSection(item)} className={`w-full rounded-lg px-3 py-2.5 text-left text-tabLabel transition ${active ? "bg-primarySurface text-textPrimary shadow-sm" : "text-textSecondary hover:bg-background hover:text-textPrimary"}`}> {item}</button>); })} </nav> <button type="button" onClick={logout} className="mt-4 w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-left text-buttonLabel text-textPrimary transition hover:bg-background"> Выйти</button> </aside> <section key={`${section}-${dashboardTabDirection}`} className={`dashboard-page-pane ${dashboardTabDirection === "next" ? "dashboard-tab-slide-next" : dashboardTabDirection === "prev" ? "dashboard-tab-slide-prev" : ""} ${dashboardDragActive ? "dashboard-tab-drag-current" : ""}`} style={dashboardCurrentStyle}> {renderDashboardHeader(section)} <div className={getDashboardContentClassName(section)}> {renderDashboardSection(section)} </div> </section> {dashboardDrag.target && (<section aria-hidden="true" className="dashboard-page-pane dashboard-page-preview dashboard-tab-drag-preview" style={dashboardPreviewStyle}> {renderDashboardHeader(dashboardDrag.target)} <div className={getDashboardContentClassName(dashboardDrag.target)}> {renderDashboardSection(dashboardDrag.target)} </div> </section>)} </div> <nav className="hidden"> <div className="mx-auto flex max-w-4xl gap-2 overflow-x-auto"> {nav.map((item) => (<button key={item} type="button" onClick={() => navigateSection(item)} className={`shrink-0 rounded-xl px-4 py-3 text-tabLabel ${section === item ? "text-tabLabelActive bg-primarySurface text-primary" : "text-textSecondary"}`}> {item}</button>))} <button type="button" onClick={logout} className="shrink-0 rounded-xl px-4 py-3 text-buttonLabel text-textPrimary"> Выйти</button> </div> </nav> {!serviceFullscreenActive && (<MobileWhatsAppBottomNav section={section} setSection={navigateSection}/>)} <AppointmentCreateModalFixed open={section === "Главная" && showAppointmentForm} addAppointment={addAppointment} appointmentForm={appointmentForm} clients={clients} services={services} setAppointmentForm={setAppointmentForm} setShowAppointmentForm={setShowAppointmentForm}/> {section === "Главная" && (<div className="appointment-fab-row"> <button type="button" onClick={() => setShowAppointmentForm((value) => !value)} className={`home-add-appointment-fab ${showAppointmentForm ? "home-add-appointment-fab-active" : ""}`} aria-label="Добавить запись" title="Добавить запись"> <ActionIcon name="plus"/></button> </div>)} {section === "Главная" && (<NotificationCenter items={notificationItems} onMarkRead={markNotificationsRead} open={notificationsOpen} seenIds={seenNotificationIds} setOpen={setNotificationsOpen} unreadCount={unreadNotificationsCount}/>)} {section === "Главная" && storyCreatorOpen && (<StoryCreatorPanel bookingUrl={bookingUrl} dateLabel={formatLongDate(today)} freeSlots={todayFreeSlots} masterName={masterProfile.displayName || masterProfile.slug} onClose={() => setStoryCreatorOpen(false)} showToast={showToast}/>)} {toast && <div className="fixed left-4 right-4 top-4 z-[9999] rounded-xl bg-textPrimary px-4 py-2 text-systemMessage text-surface md:left-auto md:right-4">{toast}</div>} </main>); }
 function NotificationCenter({ items, onMarkRead, open, seenIds, setOpen, unreadCount, }: {
@@ -1224,8 +1245,10 @@ function HomeSection(props: {
     bookingUrl: string;
     monthDate: Date;
     monthDays: Array<Date | null>;
+    onEditSelectedWorkHours: () => void;
     onToggleNotifications: () => void;
     selectedDate: string;
+    selectedDateWorkSchedule: DaySchedule;
     selectedWeekDays: Date[];
     services: Service[];
     setStoryCreatorOpen: React.Dispatch<React.SetStateAction<boolean>>;
@@ -1268,8 +1291,8 @@ function HomeSection(props: {
     pointerId: number;
     startX: number;
     startY: number;
-} | null>(null); const appointmentDragResetRef = useRef<number | null>(null); const appointmentDragSuppressClickRef = useRef<string | null>(null); const todayKey = formatDateKey(new Date()); const todayDate = parseDateKey(todayKey); const awayFromToday = props.selectedDate !== todayKey; const awayFromCurrentMonth = props.monthDate.getFullYear() !== todayDate.getFullYear() || props.monthDate.getMonth() !== todayDate.getMonth(); const currentWeekStartKey = formatDateKey(getSelectedWeekDays(new Date())[0]); const visibleWeekStartKey = formatDateKey(getSelectedWeekDays(parseDateKey(props.calendarWeekDate))[0]); const awayFromCurrentWeek = visibleWeekStartKey !== currentWeekStartKey; const showTodayAction = awayFromToday || awayFromCurrentWeek || awayFromCurrentMonth; const visibleCalendarAppointments = useMemo(() => props.calendarAppointments.filter((item) => !isArchivedAppointment(item)), [props.calendarAppointments]); const nextAppointment = useMemo(() => { const now = new Date(statusNow); return [...visibleCalendarAppointments].filter((appointment) => { const startDate = parseDateKey(appointment.date); const startMinutes = timeToMinutes(appointment.time); if (!Number.isFinite(startMinutes))
-    return false; startDate.setHours(Math.floor(startMinutes / 60), startMinutes % 60, 0, 0); return startDate.getTime() >= now.getTime(); }).sort((left, right) => `${left.date} ${left.time}`.localeCompare(`${right.date} ${right.time}`))[0]; }, [statusNow, visibleCalendarAppointments]); const totalBookedMinutes = useMemo(() => props.appointments.reduce((total, appointment) => total + getAppointmentDuration(appointment, props.services), 0), [props.appointments, props.services]); const selectedDateRevenue = useMemo(() => props.appointments.reduce((sum, appointment) => sum + getAppointmentPrice(appointment, props.services), 0), [props.appointments, props.services]); const dayLoad = Math.min(100, Math.round((totalBookedMinutes / (8 * 60)) * 100)); const selectedAppointment = useMemo(() => (selectedAppointmentId ? props.calendarAppointments.find((item) => item.id === selectedAppointmentId) || props.appointments.find((item) => item.id === selectedAppointmentId) || null : null), [props.appointments, props.calendarAppointments, selectedAppointmentId]); const selectedAppointmentServices = useMemo(() => (selectedAppointment ? getAppointmentServices(selectedAppointment, props.services) : []), [props.services, selectedAppointment]); const selectedAppointmentDuration = selectedAppointment ? getAppointmentDuration(selectedAppointment, props.services) : 0; const selectedAppointmentPrice = selectedAppointment ? getAppointmentPrice(selectedAppointment, props.services) : 0; const selectedAppointmentServiceTitle = selectedAppointment ? getAppointmentServiceTitle(selectedAppointment, props.services) : ""; const selectedAppointmentDateLabel = selectedAppointment ? formatLongDate(parseDateKey(selectedAppointment.date)) : ""; const selectedAppointmentNoShow = selectedAppointment ? isNoShowAppointment(selectedAppointment) : false; const selectedAppointmentTimelineStatus = selectedAppointment ? getAppointmentTimelineStatus(selectedAppointment, selectedAppointmentDuration || 60, statusNow) : "future"; const selectedAppointmentBadgeStatus = selectedAppointmentNoShow ? selectedAppointment?.status || "" : selectedAppointmentTimelineStatus === "past" ? "done" : selectedAppointment?.status || ""; const selectedAppointmentBadgeLabel = selectedAppointmentTimelineStatus === "past" && !selectedAppointmentNoShow ? "\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043d\u0430" : undefined; const selectedAppointmentCallHref = selectedAppointment ? getCallHref(selectedAppointment.phone) : ""; const selectedAppointmentMessageHref = selectedAppointment ? getMessageHref(selectedAppointment.phone) : ""; const selectedAppointmentPreparedMessage = selectedAppointment ? getPreparedMessageText(selectedAppointment.client) : ""; const selectedAppointmentWhatsAppHref = selectedAppointment ? getWhatsAppHref(selectedAppointment.phone, selectedAppointmentPreparedMessage) : ""; const selectedAppointmentTelegramHref = selectedAppointment ? getTelegramHref(selectedAppointment.phone, selectedAppointmentPreparedMessage) : ""; const selectedAppointmentMaxHref = selectedAppointment ? getMaxShareHref(selectedAppointmentPreparedMessage) : ""; const selectedAppointmentClient = useMemo(() => { if (!selectedAppointment)
+} | null>(null); const appointmentDragResetRef = useRef<number | null>(null); const appointmentDragSuppressClickRef = useRef<string | null>(null); const todayKey = formatDateKey(new Date()); const todayDate = parseDateKey(todayKey); const awayFromToday = props.selectedDate !== todayKey; const awayFromCurrentMonth = props.monthDate.getFullYear() !== todayDate.getFullYear() || props.monthDate.getMonth() !== todayDate.getMonth(); const currentWeekStartKey = formatDateKey(getSelectedWeekDays(new Date())[0]); const visibleWeekStartKey = formatDateKey(getSelectedWeekDays(parseDateKey(props.calendarWeekDate))[0]); const awayFromCurrentWeek = visibleWeekStartKey !== currentWeekStartKey; const showTodayAction = awayFromToday || awayFromCurrentWeek || awayFromCurrentMonth; const selectedWorkMinutes = props.selectedDateWorkSchedule.enabled ? Math.max(0, timeToMinutes(props.selectedDateWorkSchedule.end) - timeToMinutes(props.selectedDateWorkSchedule.start)) : 0; const selectedWorkScheduleLabel = formatWorkScheduleLabel(props.selectedDateWorkSchedule); const visibleCalendarAppointments = useMemo(() => props.calendarAppointments.filter((item) => !isArchivedAppointment(item)), [props.calendarAppointments]); const nextAppointment = useMemo(() => { const now = new Date(statusNow); return [...visibleCalendarAppointments].filter((appointment) => { const startDate = parseDateKey(appointment.date); const startMinutes = timeToMinutes(appointment.time); if (!Number.isFinite(startMinutes))
+    return false; startDate.setHours(Math.floor(startMinutes / 60), startMinutes % 60, 0, 0); return startDate.getTime() >= now.getTime(); }).sort((left, right) => `${left.date} ${left.time}`.localeCompare(`${right.date} ${right.time}`))[0]; }, [statusNow, visibleCalendarAppointments]); const totalBookedMinutes = useMemo(() => props.appointments.reduce((total, appointment) => total + getAppointmentDuration(appointment, props.services), 0), [props.appointments, props.services]); const selectedDateRevenue = useMemo(() => props.appointments.reduce((sum, appointment) => sum + getAppointmentPrice(appointment, props.services), 0), [props.appointments, props.services]); const dayLoad = selectedWorkMinutes > 0 ? Math.min(100, Math.round((totalBookedMinutes / selectedWorkMinutes) * 100)) : 0; const selectedAppointment = useMemo(() => (selectedAppointmentId ? props.calendarAppointments.find((item) => item.id === selectedAppointmentId) || props.appointments.find((item) => item.id === selectedAppointmentId) || null : null), [props.appointments, props.calendarAppointments, selectedAppointmentId]); const selectedAppointmentServices = useMemo(() => (selectedAppointment ? getAppointmentServices(selectedAppointment, props.services) : []), [props.services, selectedAppointment]); const selectedAppointmentDuration = selectedAppointment ? getAppointmentDuration(selectedAppointment, props.services) : 0; const selectedAppointmentPrice = selectedAppointment ? getAppointmentPrice(selectedAppointment, props.services) : 0; const selectedAppointmentServiceTitle = selectedAppointment ? getAppointmentServiceTitle(selectedAppointment, props.services) : ""; const selectedAppointmentDateLabel = selectedAppointment ? formatLongDate(parseDateKey(selectedAppointment.date)) : ""; const selectedAppointmentNoShow = selectedAppointment ? isNoShowAppointment(selectedAppointment) : false; const selectedAppointmentTimelineStatus = selectedAppointment ? getAppointmentTimelineStatus(selectedAppointment, selectedAppointmentDuration || 60, statusNow) : "future"; const selectedAppointmentBadgeStatus = selectedAppointmentNoShow ? selectedAppointment?.status || "" : selectedAppointmentTimelineStatus === "past" ? "done" : selectedAppointment?.status || ""; const selectedAppointmentBadgeLabel = selectedAppointmentTimelineStatus === "past" && !selectedAppointmentNoShow ? "\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043d\u0430" : undefined; const selectedAppointmentCallHref = selectedAppointment ? getCallHref(selectedAppointment.phone) : ""; const selectedAppointmentMessageHref = selectedAppointment ? getMessageHref(selectedAppointment.phone) : ""; const selectedAppointmentPreparedMessage = selectedAppointment ? getPreparedMessageText(selectedAppointment.client) : ""; const selectedAppointmentWhatsAppHref = selectedAppointment ? getWhatsAppHref(selectedAppointment.phone, selectedAppointmentPreparedMessage) : ""; const selectedAppointmentTelegramHref = selectedAppointment ? getTelegramHref(selectedAppointment.phone, selectedAppointmentPreparedMessage) : ""; const selectedAppointmentMaxHref = selectedAppointment ? getMaxShareHref(selectedAppointmentPreparedMessage) : ""; const selectedAppointmentClient = useMemo(() => { if (!selectedAppointment)
     return null; const normalizedPhone = selectedAppointment.phone.replace(/\D/g, ""); const normalizedName = selectedAppointment.client.trim().toLowerCase(); return (props.clients.find((client) => { const clientPhone = client.phone.replace(/\D/g, ""); if (normalizedPhone)
     return clientPhone === normalizedPhone; return normalizedName ? client.name.trim().toLowerCase() === normalizedName : false; }) || null); }, [props.clients, selectedAppointment]); const selectedAppointmentVisibleNotes = (selectedAppointmentClient ? selectedAppointmentClient.notes : selectedAppointment?.notes || "").trim(); const selectedAppointmentClientHistory = useMemo(() => { if (!selectedAppointment)
     return []; const normalizedPhone = selectedAppointment.phone.replace(/\D/g, ""); const normalizedName = selectedAppointment.client.trim().toLowerCase(); return props.calendarAppointments.filter((appointment) => { const phone = appointment.phone.replace(/\D/g, ""); if (normalizedPhone)
@@ -1330,7 +1353,7 @@ else if (!horizontal && Math.abs(deltaY) > threshold) {
     return; if (!calendarMonthRoll)
     return; props.changeMonth(calendarMonthRoll.direction); setCalendarMonthRoll(null); }}> {(calendarMonthRoll?.direction === -1 ? [new Date(props.monthDate.getFullYear(), props.monthDate.getMonth() - 1, 1), props.monthDate] : calendarMonthRoll?.direction === 1 ? [props.monthDate, new Date(props.monthDate.getFullYear(), props.monthDate.getMonth() + 1, 1)] : [props.monthDate]).map((month, monthIndex) => renderCalendarMonthPage(month, `${monthIndex}-${month.getFullYear()}-${month.getMonth()}`))} </div> </div>) : (<div className={`calendar-week-track calendar-week-static mt-3 rounded-2xl bg-surface ${calendarWeekRoll ? "calendar-week-track-rolling" : ""}`} onTouchStart={(event) => { event.stopPropagation(); handleCalendarWeekTouchStart(event); }} onTouchEnd={(event) => { event.stopPropagation(); handleCalendarWeekTouchEnd(event); }} onTouchCancel={(event) => { event.stopPropagation(); calendarWeekTouchStartRef.current = null; }}> <div key={calendarWeekRoll?.nonce || props.selectedWeekDays[0]?.toISOString()} className={`calendar-week-roller ${calendarWeekRoll ? `calendar-week-roller-${calendarWeekRoll.direction > 0 ? "next" : "prev"}` : ""}`} onAnimationEnd={(event) => { if (event.currentTarget !== event.target)
     return; if (!calendarWeekRoll)
-    return; props.changeWeek(calendarWeekRoll.direction); setCalendarWeekRoll(null); }}> {(calendarWeekRoll?.direction === -1 ? [props.selectedWeekDays.map((day) => addDays(day, -7)), props.selectedWeekDays] : calendarWeekRoll?.direction === 1 ? [props.selectedWeekDays, props.selectedWeekDays.map((day) => addDays(day, 7))] : [props.selectedWeekDays]).map((week, weekIndex) => (<div key={`${weekIndex}-${week[0]?.toISOString()}`} className="calendar-week-page grid grid-cols-7 gap-1 p-2 md:gap-2 md:p-3"> {week.map((day) => renderCalendarDay(day, "week"))} </div>))} </div> </div>)} </section> <section className="home-agenda-section"> <div className="agenda-header flex items-start justify-between gap-3"> <div className={`agenda-toggle-strip ${props.compactAppointments ? "" : "is-expanded"}`}> <span className="agenda-count-title text-conversationName text-textPrimary"><span>Записей: {props.appointments.length}</span><span>Выручка: {selectedDateRevenue.toLocaleString("ru-RU")} ₽</span><span>Загрузка: {dayLoad}%</span></span> </div> <button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); props.setCompactAppointments((value) => !value); }} className={`agenda-collapse-button ${props.compactAppointments ? "" : "is-expanded"}`} aria-expanded={!props.compactAppointments} aria-label={props.compactAppointments ? "Показать записи подробно" : "Свернуть записи компактно"} title={props.compactAppointments ? "Подробно" : "Компактно"}> <CaretDown className="agenda-toggle-strip-icon" weight="bold" aria-hidden="true"/></button> <div className="flex shrink-0 items-center gap-2"> <button type="button" onClick={() => props.setShowFilters((value) => !value)} className={`hidden h-10 min-h-0 w-10 items-center justify-center rounded-full border text-textPrimary transition hover:bg-background md:h-11 md:w-11 ${props.showFilters ? "border-textPrimary bg-background" : "border-border bg-surface"}`} aria-label="Фильтры записей" title="Фильтры"> <ActionIcon name="filter"/></button> </div> </div> <div className="hidden"> <div className="min-h-0 overflow-hidden"> <div className="saas-card space-y-2 p-2.5 md:p-3"> <p className="text-sectionLabel text-textPrimary">Что показать?</p> <div className="flex flex-wrap gap-1.5"> {([] as const).map((status) => (<button key={status} type="button" onClick={() => undefined} className="h-8 min-h-0 rounded-md border border-border bg-surface px-2.5 text-messageMetadata text-textPrimary"> {status}</button>))} </div> </div> </div> </div> <div className="hidden"> <div className="min-h-0 overflow-hidden"> <form onSubmit={props.addAppointment} className="home-appointment-form saas-card grid gap-3 rounded-2xl p-4 md:grid-cols-5 md:p-5"> <div className="md:col-span-5"> <p className="text-conversationName text-textPrimary">Новая запись</p> <p className="mt-1 text-settingsRowDescription text-textSecondary">Заполните основные данные клиента.</p> </div> <TimeWheelPicker label="Время" value={props.appointmentForm.time} onChange={(time) => props.setAppointmentForm((current) => ({ ...current, time }))}/> <ClientPicker clients={props.clients} valueName={props.appointmentForm.client} valuePhone={props.appointmentForm.phone} onSelect={(client) => props.setAppointmentForm((current) => ({ ...current, client: client.name, phone: client.phone }))}/> <input value={props.appointmentForm.client} onChange={(event) => props.setAppointmentForm((current) => ({ ...current, client: event.target.value }))} className="rounded-xl border border-border px-3 py-3" placeholder="Имя клиента"/> <input value={props.appointmentForm.phone} onChange={(event) => props.setAppointmentForm((current) => ({ ...current, phone: event.target.value }))} className="rounded-xl border border-border px-3 py-3" placeholder="Телефон"/> <ServicePicker services={props.services} value={props.appointmentForm.serviceIds.length ? props.appointmentForm.serviceIds : props.appointmentForm.serviceId ? [props.appointmentForm.serviceId] : []} onChange={(serviceIds) => props.setAppointmentForm((current) => ({ ...current, serviceId: serviceIds[0] || "", serviceIds }))}/> <div className="grid grid-cols-2 gap-2 md:flex md:flex-row"> <button type="submit" className="w-full rounded-lg bg-primary px-3 py-3 text-settingsRowTitle text-surface md:flex-1"> Готово</button> <button type="button" onClick={() => props.setShowAppointmentForm(false)} className="w-full rounded-lg border border-border px-3 py-3 text-settingsRowTitle md:w-auto"> Не сейчас</button> </div> </form> </div> </div> <div className="next-appointment-strip mt-2 flex min-w-0 items-center gap-2 px-0.5 text-messageMetadata text-textSecondary"> <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-background text-textPrimary"> <Clock className="h-3.5 w-3.5" weight="bold" aria-hidden="true"/> </span> <span className="next-appointment-marquee min-w-0 flex-1"> <span> {nextAppointment ? `Ближайшая: ${nextAppointment.time} · ${nextAppointment.client} · ${getAppointmentServiceTitle(nextAppointment, props.services)}` : "Ближайших записей нет"} </span> </span> <span className="shrink-0 text-buttonLabel text-textPrimary">{Math.floor(totalBookedMinutes / 60)} ч {totalBookedMinutes % 60} мин</span> </div> <div key={props.selectedDate} className="calendar-list-transition mt-2 space-y-2"> {props.blockedTimes.map((item) => (<article key={item.id} className="saas-card grid gap-2 bg-background p-3 md:grid-cols-[96px_1fr] md:items-center"> <div> <p className="text-navigationTitle text-textPrimary">{item.start}-{item.end}</p> <p className="text-settingsRowDescription text-textSecondary">закрыто</p> </div> <div> <p className="text-settingsRowTitle">Время недоступно для записи</p> <p className="text-settingsRowDescription text-textSecondary">{item.reason}</p> </div> </article>))} {props.appointments.length === 0 ? (<article className="home-empty-state" aria-hidden="true"/>) : (props.appointments.map((item, index) => { const appointmentServices = getAppointmentServices(item, props.services); const serviceTitle = getAppointmentServiceTitle(item, props.services); const serviceDuration = appointmentServices.reduce((sum, service) => sum + service.duration, 0); const servicePrice = appointmentServices.reduce((sum, service) => sum + service.price, 0); const appointmentServiceColor = getAppointmentServiceColor(item, props.services); const appointmentTimelineStatus = getAppointmentTimelineStatus(item, serviceDuration || 60, statusNow); const appointmentNoShow = isNoShowAppointment(item); const appointmentCompleted = appointmentTimelineStatus === "past" && !appointmentNoShow; const appointmentBadgeStatus = appointmentNoShow ? item.status : appointmentTimelineStatus === "past" ? "done" : item.status; const appointmentBadgeLabel = undefined; const appointmentDragProps = getAppointmentDragProps(item.id); if (props.compactAppointments && expandedCompactAppointmentId !== item.id) {
+ return; props.changeWeek(calendarWeekRoll.direction); setCalendarWeekRoll(null); }}> {(calendarWeekRoll?.direction === -1 ? [props.selectedWeekDays.map((day) => addDays(day, -7)), props.selectedWeekDays] : calendarWeekRoll?.direction === 1 ? [props.selectedWeekDays, props.selectedWeekDays.map((day) => addDays(day, 7))] : [props.selectedWeekDays]).map((week, weekIndex) => (<div key={`${weekIndex}-${week[0]?.toISOString()}`} className="calendar-week-page grid grid-cols-7 gap-1 p-2 md:gap-2 md:p-3"> {week.map((day) => renderCalendarDay(day, "week"))} </div>))} </div> </div>)} </section> <section className="home-agenda-section"> <div className="agenda-header flex items-start justify-between gap-3"> <div className={`agenda-toggle-strip ${props.compactAppointments ? "" : "is-expanded"}`}> <span className="agenda-count-title text-conversationName text-textPrimary"><span>Записей: {props.appointments.length}</span><span>Выручка: {selectedDateRevenue.toLocaleString("ru-RU")} ₽</span><span>Загрузка: {dayLoad}%</span><button type="button" onClick={props.onEditSelectedWorkHours} className="agenda-work-hours-button" aria-label={`Редактировать рабочие часы на ${props.formatSelectedDate}`} title="Редактировать рабочие часы"><Clock className="agenda-work-hours-icon" weight="bold" aria-hidden="true"/><span>{selectedWorkScheduleLabel}</span></button></span> </div> <button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); props.setCompactAppointments((value) => !value); }} className={`agenda-collapse-button ${props.compactAppointments ? "" : "is-expanded"}`} aria-expanded={!props.compactAppointments} aria-label={props.compactAppointments ? "Показать записи подробно" : "Свернуть записи компактно"} title={props.compactAppointments ? "Подробно" : "Компактно"}> <CaretDown className="agenda-toggle-strip-icon" weight="bold" aria-hidden="true"/></button> <div className="flex shrink-0 items-center gap-2"> <button type="button" onClick={() => props.setShowFilters((value) => !value)} className={`hidden h-10 min-h-0 w-10 items-center justify-center rounded-full border text-textPrimary transition hover:bg-background md:h-11 md:w-11 ${props.showFilters ? "border-textPrimary bg-background" : "border-border bg-surface"}`} aria-label="Фильтры записей" title="Фильтры"> <ActionIcon name="filter"/></button> </div> </div> <div className="hidden"> <div className="min-h-0 overflow-hidden"> <div className="saas-card space-y-2 p-2.5 md:p-3"> <p className="text-sectionLabel text-textPrimary">Что показать?</p> <div className="flex flex-wrap gap-1.5"> {([] as const).map((status) => (<button key={status} type="button" onClick={() => undefined} className="h-8 min-h-0 rounded-md border border-border bg-surface px-2.5 text-messageMetadata text-textPrimary"> {status}</button>))} </div> </div> </div> </div> <div className="hidden"> <div className="min-h-0 overflow-hidden"> <form onSubmit={props.addAppointment} className="home-appointment-form saas-card grid gap-3 rounded-2xl p-4 md:grid-cols-5 md:p-5"> <div className="md:col-span-5"> <p className="text-conversationName text-textPrimary">Новая запись</p> <p className="mt-1 text-settingsRowDescription text-textSecondary">Заполните основные данные клиента.</p> </div> <TimeWheelPicker label="Время" value={props.appointmentForm.time} onChange={(time) => props.setAppointmentForm((current) => ({ ...current, time }))}/> <ClientPicker clients={props.clients} valueName={props.appointmentForm.client} valuePhone={props.appointmentForm.phone} onSelect={(client) => props.setAppointmentForm((current) => ({ ...current, client: client.name, phone: client.phone }))}/> <input value={props.appointmentForm.client} onChange={(event) => props.setAppointmentForm((current) => ({ ...current, client: event.target.value }))} className="rounded-xl border border-border px-3 py-3" placeholder="Имя клиента"/> <input value={props.appointmentForm.phone} onChange={(event) => props.setAppointmentForm((current) => ({ ...current, phone: event.target.value }))} className="rounded-xl border border-border px-3 py-3" placeholder="Телефон"/> <ServicePicker services={props.services} value={props.appointmentForm.serviceIds.length ? props.appointmentForm.serviceIds : props.appointmentForm.serviceId ? [props.appointmentForm.serviceId] : []} onChange={(serviceIds) => props.setAppointmentForm((current) => ({ ...current, serviceId: serviceIds[0] || "", serviceIds }))}/> <div className="grid grid-cols-2 gap-2 md:flex md:flex-row"> <button type="submit" className="w-full rounded-lg bg-primary px-3 py-3 text-settingsRowTitle text-surface md:flex-1"> Готово</button> <button type="button" onClick={() => props.setShowAppointmentForm(false)} className="w-full rounded-lg border border-border px-3 py-3 text-settingsRowTitle md:w-auto"> Не сейчас</button> </div> </form> </div> </div> <div className="next-appointment-strip mt-2 flex min-w-0 items-center gap-2 px-0.5 text-messageMetadata text-textSecondary"> <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-background text-textPrimary"> <Clock className="h-3.5 w-3.5" weight="bold" aria-hidden="true"/> </span> <span className="next-appointment-marquee min-w-0 flex-1"> <span> {nextAppointment ? `Ближайшая: ${nextAppointment.time} · ${nextAppointment.client} · ${getAppointmentServiceTitle(nextAppointment, props.services)}` : "Ближайших записей нет"} </span> </span> <span className="shrink-0 text-buttonLabel text-textPrimary">{Math.floor(totalBookedMinutes / 60)} ч {totalBookedMinutes % 60} мин</span> </div> <div key={props.selectedDate} className="calendar-list-transition mt-2 space-y-2"> {props.blockedTimes.map((item) => (<article key={item.id} className="saas-card grid gap-2 bg-background p-3 md:grid-cols-[96px_1fr] md:items-center"> <div> <p className="text-navigationTitle text-textPrimary">{item.start}-{item.end}</p> <p className="text-settingsRowDescription text-textSecondary">закрыто</p> </div> <div> <p className="text-settingsRowTitle">Время недоступно для записи</p> <p className="text-settingsRowDescription text-textSecondary">{item.reason}</p> </div> </article>))} {props.appointments.length === 0 ? (<article className="home-empty-state" aria-hidden="true"/>) : (props.appointments.map((item, index) => { const appointmentServices = getAppointmentServices(item, props.services); const serviceTitle = getAppointmentServiceTitle(item, props.services); const serviceDuration = appointmentServices.reduce((sum, service) => sum + service.duration, 0); const servicePrice = appointmentServices.reduce((sum, service) => sum + service.price, 0); const appointmentServiceColor = getAppointmentServiceColor(item, props.services); const appointmentTimelineStatus = getAppointmentTimelineStatus(item, serviceDuration || 60, statusNow); const appointmentNoShow = isNoShowAppointment(item); const appointmentCompleted = appointmentTimelineStatus === "past" && !appointmentNoShow; const appointmentBadgeStatus = appointmentNoShow ? item.status : appointmentTimelineStatus === "past" ? "done" : item.status; const appointmentBadgeLabel = undefined; const appointmentDragProps = getAppointmentDragProps(item.id); if (props.compactAppointments && expandedCompactAppointmentId !== item.id) {
     return (<button key={item.id} type="button" {...appointmentDragProps} onClick={() => setSelectedAppointmentId(item.id)} className={`appointment-card appointment-card-reference appointment-card-${appointmentTimelineStatus} appointment-card-compact appointment-card-elastic pressable-surface saas-card relative w-full overflow-hidden text-left hover:bg-background ${appointmentDragProps.className}`} style={{ ...appointmentDragProps.style, "--appointment-service-color": appointmentServiceColor } as CSSProperties}> <span className="appointment-card-reveal-layer" aria-hidden="true"/> <span className="appointment-service-color-stripe" aria-hidden="true"/> <div className="master-booking-card master-booking-card-compact"> <div className="master-booking-time"> <p>{item.time}</p> </div> <div className="master-booking-details"> <p className="master-booking-service truncate">{appointmentServices.length ? serviceTitle : "Услуга удалена"}</p> <p className="master-booking-meta"> <User className="master-booking-meta-icon" aria-hidden="true"/> <span className="truncate">{item.client}</span> </p> {appointmentCompleted ? (<span className="master-booking-complete-check" aria-label="Выполнено" title="Выполнено"> <Check weight="bold" aria-hidden="true"/> </span>) : (<StatusBadge className="appointment-detail-status master-booking-inline-status" label={appointmentBadgeLabel} status={appointmentBadgeStatus}/>)} <p className="master-booking-meta master-booking-phone-status"> <Phone className="master-booking-meta-icon" aria-hidden="true"/> <span className="truncate">{item.phone || "Без телефона"}</span> </p> <p className="master-booking-meta master-booking-duration-inline"> <Clock className="master-booking-meta-icon" weight="bold" aria-hidden="true"/> <span>{appointmentServices.length ? serviceDuration : 60} мин</span> <span className="master-booking-duration-price"> <CurrencyRub className="h-3.5 w-3.5" weight="bold" aria-hidden="true"/> <span>{servicePrice.toLocaleString("ru-RU")} ₽</span> </span> </p> </div> <div className="master-booking-actions"> <span className="master-booking-menu" aria-hidden="true"> <DotsThree className="h-5 w-5 rotate-90" weight="bold" aria-hidden="true"/> </span> </div> </div> <span className={`appointment-status-dot appointment-status-dot-${appointmentTimelineStatus}`} aria-hidden="true"/> <div className="grid grid-cols-[48px_minmax(0,0.85fr)_minmax(0,1fr)] items-center gap-2 px-3 py-2 md:grid-cols-[64px_minmax(0,0.85fr)_minmax(0,1fr)]"> <p className="whitespace-nowrap tabular-nums text-timestamp text-textPrimary">{item.time}</p> <p className="truncate text-conversationName text-textPrimary">{item.client}</p> <p className="text-conversationPreview text-textSecondary">{appointmentServices.length ? serviceTitle : "Услуга удалена"}</p> </div></button>);
 } return (<article key={item.id} {...appointmentDragProps} onClick={() => setSelectedAppointmentId(item.id)} onKeyDown={(event) => { if (event.key !== "Enter" && event.key !== " ")
     return; event.preventDefault(); setSelectedAppointmentId(item.id); }} role="button" tabIndex={0} className={`appointment-card appointment-card-reference appointment-card-${appointmentTimelineStatus} appointment-card-elastic pressable-surface saas-card relative cursor-pointer overflow-hidden ${appointmentDragProps.className}`} style={{ ...appointmentDragProps.style, "--appointment-service-color": appointmentServiceColor } as CSSProperties}> <span className="appointment-card-reveal-layer" aria-hidden="true"/> <span className="appointment-service-color-stripe" aria-hidden="true"/> <div className="master-booking-card"> <div className="master-booking-time"> <p>{item.time}</p> </div> <div className="master-booking-details"> <p className="master-booking-service truncate">{appointmentServices.length ? serviceTitle : "Услуга удалена"}</p> <p className="master-booking-meta"> <User className="master-booking-meta-icon" aria-hidden="true"/> <span className="truncate">{item.client}</span> </p> {appointmentCompleted ? (<span className="master-booking-complete-check" aria-label="Выполнено" title="Выполнено"> <Check weight="bold" aria-hidden="true"/> </span>) : (<StatusBadge className="appointment-detail-status master-booking-inline-status" label={appointmentBadgeLabel} status={appointmentBadgeStatus}/>)} <p className="master-booking-meta master-booking-phone-status"> <Phone className="master-booking-meta-icon" aria-hidden="true"/> <span className="truncate">{item.phone || "Без телефона"}</span> </p> <p className="master-booking-meta master-booking-duration-inline"> <Clock className="master-booking-meta-icon" weight="bold" aria-hidden="true"/> <span>{appointmentServices.length ? serviceDuration : 60} мин</span> <span className="master-booking-duration-price"> <CurrencyRub className="h-3.5 w-3.5" weight="bold" aria-hidden="true"/> <span>{servicePrice.toLocaleString("ru-RU")} ₽</span> </span> </p> </div> <div className="master-booking-actions"> <button type="button" onClick={(event) => { event.stopPropagation(); setDeleteTarget((current) => (current?.id === item.id ? null : item)); }} className="master-booking-menu" aria-label="Действия записи" title="Действия"> <DotsThree className="h-5 w-5 rotate-90" weight="bold" aria-hidden="true"/></button> </div> </div> <span className={`appointment-status-dot appointment-status-dot-${appointmentTimelineStatus}`} aria-hidden="true"/> <div className="appointment-card-main appointment-card-main-featured grid gap-2 p-3 md:p-3.5"> <div className="appointment-card-row appointment-card-row-top grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2"> <div className="appointment-client-row min-w-0"> <p className="appointment-client-name truncate"> {item.client} </p> </div> <div className="appointment-actions flex w-9 items-center justify-end"> <button type="button" onClick={(event) => { event.stopPropagation(); setDeleteTarget((current) => (current?.id === item.id ? null : item)); }} className="flex h-8 min-h-0 w-8 items-center justify-center rounded-full border border-transparent bg-transparent text-textPrimary hover:bg-transparent" aria-label="Удалить запись" title="Удалить"> <ActionIcon name="trash"/></button> </div> </div> <div className="appointment-card-row appointment-card-row-bottom flex min-w-0 flex-wrap items-center gap-1.5"> <span className="appointment-time-pill tabular-nums">{item.time}</span> {appointmentCompleted ? (<span className="master-booking-complete-check" aria-label="Выполнено" title="Выполнено"> <Check weight="bold" aria-hidden="true"/> </span>) : (<StatusBadge className="max-w-[10rem]" label={appointmentBadgeLabel} status={appointmentBadgeStatus}/>)} <span className="appointment-phone-pill"> <span className="appointment-phone-icon" aria-hidden="true"> <ActionIcon name="phone"/> </span> <span className="truncate">{item.phone || "Без телефона"}</span> </span> <div className="appointment-service-row flex min-w-0 flex-wrap items-center gap-1.5 text-settingsRowDescription"> <span className="appointment-chip appointment-service-chip"> <span className="truncate">{appointmentServices.length ? serviceTitle : "Услуга удалена"}</span> </span> {appointmentServices.length ? (<> <span className="appointment-chip">{serviceDuration} мин</span> <span className="appointment-chip appointment-price-chip">{servicePrice.toLocaleString("ru-RU")} ₽</span> </>) : (<span className="appointment-chip">нет деталей</span>)} </div> </div> </div> <div className={`appointment-confirm grid transition-all duration-300 ${deleteTarget?.id === item.id ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}> <div className="min-h-0 overflow-hidden"> <div className="flex flex-col gap-3 bg-background p-3 md:flex-row md:items-center md:justify-between" role="alert" onClick={(event) => event.stopPropagation()}> <div className="flex items-center gap-2"> <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-transparent text-textPrimary"> <ActionIcon name="trash"/> </span> <p className="text-settingsRowTitle text-textPrimary">Точно убираем эту запись?</p> </div> <div className="grid grid-cols-2 gap-2 md:w-[260px]"> <button type="button" onClick={() => { props.deleteAppointment(item.id); setDeleteTarget(null); }} className="min-h-0 rounded-lg bg-textPrimary px-3 py-2 text-settingsRowTitle text-surface hover:opacity-90"> Ага</button> <button type="button" onClick={() => setDeleteTarget(null)} className="min-h-0 rounded-lg border border-border bg-surface px-3 py-2 text-settingsRowTitle text-textPrimary hover:bg-background"> Нет</button> </div> </div> </div> </div> </article>); }))} </div> </section> </div>); }
@@ -1447,7 +1470,10 @@ function ScheduleSection(props: {
     bookingPageSettings: BookingPageSettings;
     bufferMin: number;
     deleteBlockedTime: (id: string) => void;
+    openIndividualWorkHoursEditor: boolean;
     openWeekdayEditor: string | null;
+    selectedWorkHoursDate: string | null;
+    onCloseSelectedWorkHours: () => void;
     saveBookingPageSettings: (settingsOverride?: BookingPageSettings) => Promise<void>;
     saveSchedule: (overrides?: {
         autoTimeSnap?: boolean;
@@ -1492,6 +1518,13 @@ function ScheduleSection(props: {
     const [individualWorkSchedule, setIndividualWorkSchedule] = useState<DaySchedule>(() => getIndividualScheduleDraft());
     const [individualWorkHoursOpen, setIndividualWorkHoursOpen] = useState(false);
     const [individualWorkDraft, setIndividualWorkDraft] = useState<DaySchedule>(() => getIndividualScheduleDraft());
+    const [breakEditorMode, setBreakEditorMode] = useState<"weekday" | "individual" | null>(null);
+    const [breakDraft, setBreakDraft] = useState<BreakPeriod>(() => createBreakPeriod());
+    const [breakSheetOffset, setBreakSheetOffset] = useState(0);
+    const [breakSheetPhase, setBreakSheetPhase] = useState<"open" | "dragging" | "settling" | "closing">("open");
+    const breakSheetSwipeRef = useRef<{ pointerId?: number; startX: number; startY: number; startedAt: number; dragging: boolean } | null>(null);
+    const breakSheetElementRef = useRef<HTMLElement | null>(null);
+    const breakSheetCloseTimerRef = useRef<number | null>(null);
     const individualEndDate = formatDateKey(addDays(parseDateKey(individualStartDate), 90));
     const individualPlan = useMemo<SchedulePlan>(() => ({
         mode: "cycle",
@@ -1502,15 +1535,19 @@ function ScheduleSection(props: {
         customWorkDays,
         customOffDays,
         dayRule: { ...defaultScheduleDayRule, ...individualWorkSchedule },
-        dateOverrides: {},
-    }), [cyclePreset, customOffDays, customWorkDays, individualEndDate, individualStartDate, individualWorkSchedule]);
+        dateOverrides: Object.fromEntries(Object.entries(getStoredDateOverrides(props.weeklySchedule)).map(([date, rule]) => [date, { ...defaultScheduleDayRule, ...rule }])),
+    }), [cyclePreset, customOffDays, customWorkDays, individualEndDate, individualStartDate, individualWorkSchedule, props.weeklySchedule]);
     const individualCalendarMonths = useMemo(() => buildScheduleMonths(individualPlan, 3), [individualPlan]);
     const activeWeekdayIndex = Number(props.openWeekdayEditor ?? 1);
     const activeWeekday = scheduleDays.find((day) => day.index === activeWeekdayIndex) || scheduleDays[0];
     const activeWeekdayValue = props.weeklySchedule[String(activeWeekday.index)] || defaultWeeklySchedule[String(activeWeekday.index)];
+    const selectedWorkHoursSchedule = useMemo(() => props.selectedWorkHoursDate ? getScheduleForDate(parseDateKey(props.selectedWorkHoursDate), props.weeklySchedule, props.workStart, props.workEnd) : null, [props.selectedWorkHoursDate, props.weeklySchedule, props.workEnd, props.workStart]);
+    const selectedWorkHoursDateLabel = props.selectedWorkHoursDate ? formatLongDate(parseDateKey(props.selectedWorkHoursDate)) : "";
+    const workHoursEditorOpen = individualWorkHoursOpen || Boolean(props.selectedWorkHoursDate);
+    const workHoursDraft = props.selectedWorkHoursDate && !individualWorkHoursOpen ? withSyncedBreakFields(selectedWorkHoursSchedule || individualWorkSchedule) : individualWorkDraft;
     const activeWeekdayBreaks = getDayBreaks(activeWeekdayValue);
     const individualWorkBreaks = getDayBreaks(individualWorkSchedule);
-    const individualWorkDraftBreaks = getDayBreaks(individualWorkDraft);
+    const individualWorkDraftBreaks = getDayBreaks(workHoursDraft);
 
     useEffect(() => {
         setSelectedScheduleMode(getStoredScheduleMode(props.weeklySchedule));
@@ -1520,6 +1557,12 @@ function ScheduleSection(props: {
             setIndividualWorkSchedule(getIndividualScheduleDraft());
         }
     }, [props.schedulePanel, props.weeklySchedule, props.workEnd, props.workStart]);
+    useEffect(() => {
+        if (props.schedulePanel !== "individual" || !props.openIndividualWorkHoursEditor)
+            return;
+        setIndividualWorkDraft(withSyncedBreakFields(selectedWorkHoursSchedule || individualWorkSchedule));
+        setIndividualWorkHoursOpen(true);
+    }, [individualWorkSchedule, props.openIndividualWorkHoursEditor, props.schedulePanel, selectedWorkHoursSchedule]);
     useEffect(() => {
         setBookingWindowDraft(String(props.bookingPageSettings.maxBookingDaysAhead || 14));
     }, [props.bookingPageSettings.maxBookingDaysAhead]);
@@ -1546,34 +1589,303 @@ function ScheduleSection(props: {
             [String(dayIndex)]: withSyncedBreakFields({ ...(current[String(dayIndex)] || defaultWeeklySchedule[String(dayIndex)]), ...patch } as DaySchedule),
         }));
     };
-    const updateBreak = (dayIndex: number, value: DaySchedule, breakId: string, patch: Partial<BreakPeriod>) => {
-        const nextBreaks = getDayBreaks(value).map((item) => (item.id === breakId ? { ...item, ...patch } : item));
-        updateDay(dayIndex, { breaks: nextBreaks, breakEnabled: nextBreaks.length > 0, breakStart: nextBreaks[0]?.start || value.breakStart, breakEnd: nextBreaks[0]?.end || value.breakEnd });
-    };
-    const addBreak = (dayIndex: number, value: DaySchedule) => {
-        const nextBreaks = [...getDayBreaks(value), createBreakPeriod(getDayBreaks(value).length)];
-        updateDay(dayIndex, { breaks: nextBreaks, breakEnabled: true, breakStart: nextBreaks[0].start, breakEnd: nextBreaks[0].end });
-    };
     const removeBreak = (dayIndex: number, value: DaySchedule, breakId: string) => {
         const nextBreaks = getDayBreaks(value).filter((item) => item.id !== breakId);
         updateDay(dayIndex, { breaks: nextBreaks, breakEnabled: nextBreaks.length > 0, breakStart: nextBreaks[0]?.start || "13:00", breakEnd: nextBreaks[0]?.end || "14:00" });
     };
     const updateIndividualWorkDraft = (patch: Partial<DaySchedule>) => {
+        if (props.selectedWorkHoursDate && !individualWorkHoursOpen) {
+            setIndividualWorkHoursOpen(true);
+            setIndividualWorkDraft(withSyncedBreakFields({ ...workHoursDraft, ...patch }));
+            return;
+        }
         setIndividualWorkDraft((current) => withSyncedBreakFields({ ...current, ...patch }));
     };
-    const updateIndividualBreak = (breakId: string, patch: Partial<BreakPeriod>) => {
-        setIndividualWorkDraft((current) => {
-            const nextBreaks = getDayBreaks(current).map((item) => (item.id === breakId ? { ...item, ...patch } : item));
-            return withSyncedBreakFields({ ...current, breaks: nextBreaks, breakEnabled: nextBreaks.length > 0, breakStart: nextBreaks[0]?.start || current.breakStart, breakEnd: nextBreaks[0]?.end || current.breakEnd });
-        });
+    useEffect(() => () => {
+        if (breakSheetCloseTimerRef.current)
+            window.clearTimeout(breakSheetCloseTimerRef.current);
+        cleanupBreakSheetWindowListeners();
+    }, []);
+    const cleanupBreakSheetWindowListeners = () => {
+        window.removeEventListener("pointermove", handleBreakSheetWindowPointerMove);
+        window.removeEventListener("pointerup", handleBreakSheetWindowPointerUp);
+        window.removeEventListener("pointercancel", handleBreakSheetWindowPointerCancel);
+        window.removeEventListener("mousemove", handleBreakSheetWindowMouseMove);
+        window.removeEventListener("mouseup", handleBreakSheetWindowMouseUp);
+        window.removeEventListener("touchmove", handleBreakSheetWindowTouchMove);
+        window.removeEventListener("touchend", handleBreakSheetWindowTouchEnd);
+        window.removeEventListener("touchcancel", handleBreakSheetWindowTouchCancel);
     };
-    const addIndividualBreak = () => {
-        setIndividualWorkDraft((current) => {
-            const nextBreaks = [...getDayBreaks(current), createBreakPeriod(getDayBreaks(current).length)];
-            return withSyncedBreakFields({ ...current, breaks: nextBreaks, breakEnabled: true, breakStart: nextBreaks[0].start, breakEnd: nextBreaks[0].end });
-        });
+    const listenBreakSheetWindowGesture = () => {
+        cleanupBreakSheetWindowListeners();
+        window.addEventListener("pointermove", handleBreakSheetWindowPointerMove, { passive: false });
+        window.addEventListener("pointerup", handleBreakSheetWindowPointerUp);
+        window.addEventListener("pointercancel", handleBreakSheetWindowPointerCancel);
+        window.addEventListener("mousemove", handleBreakSheetWindowMouseMove, { passive: false });
+        window.addEventListener("mouseup", handleBreakSheetWindowMouseUp);
+        window.addEventListener("touchmove", handleBreakSheetWindowTouchMove, { passive: false });
+        window.addEventListener("touchend", handleBreakSheetWindowTouchEnd);
+        window.addEventListener("touchcancel", handleBreakSheetWindowTouchCancel);
+    };
+    const shouldIgnoreBreakSheetSwipe = (target: EventTarget | null) => target instanceof HTMLElement && Boolean(target.closest("input, textarea, select, button, a, .time-wheel-field, .time-wheel-shell, .time-wheel-list, [contenteditable='true']"));
+    const openBreakEditor = (mode: "weekday" | "individual", draft: BreakPeriod) => {
+        if (breakSheetCloseTimerRef.current) {
+            window.clearTimeout(breakSheetCloseTimerRef.current);
+            breakSheetCloseTimerRef.current = null;
+        }
+        setBreakDraft(draft);
+        setBreakSheetOffset(0);
+        setBreakSheetPhase("open");
+        setBreakEditorMode(mode);
+    };
+    const closeBreakEditor = () => {
+        breakSheetSwipeRef.current = null;
+        cleanupBreakSheetWindowListeners();
+        if (breakSheetCloseTimerRef.current)
+            window.clearTimeout(breakSheetCloseTimerRef.current);
+        setBreakEditorMode(null);
+        setBreakSheetOffset(0);
+        setBreakSheetPhase("open");
+        breakSheetCloseTimerRef.current = null;
+    };
+    const openWeekdayBreakEditor = (event?: MouseEvent<HTMLButtonElement>) => {
+        event?.preventDefault();
+        event?.stopPropagation();
+        openBreakEditor("weekday", createBreakPeriod(activeWeekdayBreaks.length));
+    };
+    const openIndividualBreakEditor = (event?: MouseEvent<HTMLButtonElement>) => {
+        event?.preventDefault();
+        event?.stopPropagation();
+        if (props.selectedWorkHoursDate && !individualWorkHoursOpen) {
+            setIndividualWorkHoursOpen(true);
+            setIndividualWorkDraft(withSyncedBreakFields(workHoursDraft));
+        }
+        openBreakEditor("individual", createBreakPeriod(individualWorkDraftBreaks.length));
+    };
+    const moveBreakSheetSwipe = (clientX: number, clientY: number, sheet: HTMLElement, cancelDefault: () => void) => {
+        const swipe = breakSheetSwipeRef.current;
+        if (!swipe)
+            return;
+        const deltaX = clientX - swipe.startX;
+        const deltaY = clientY - swipe.startY;
+        if (!swipe.dragging && (deltaY < 10 || Math.abs(deltaY) < Math.abs(deltaX) * 1.25))
+            return;
+        if (deltaY <= 0)
+            return;
+        if (!swipe.dragging && sheet.scrollTop > 0)
+            return;
+        swipe.dragging = true;
+        cancelDefault();
+        setBreakSheetPhase("dragging");
+        const maxOffset = Math.max(window.innerHeight, sheet.getBoundingClientRect().height);
+        setBreakSheetOffset(Math.min(deltaY, maxOffset));
+    };
+    const finishBreakSheetSwipe = (clientY: number, cancelDefault: () => void) => {
+        const swipe = breakSheetSwipeRef.current;
+        if (!swipe)
+            return;
+        breakSheetSwipeRef.current = null;
+        cleanupBreakSheetWindowListeners();
+        const deltaY = clientY - swipe.startY;
+        const elapsed = Math.max(1, Date.now() - swipe.startedAt);
+        const velocity = deltaY / elapsed;
+        if (swipe.dragging)
+            cancelDefault();
+        if (deltaY > 92 || (deltaY > 52 && velocity > 0.45)) {
+            closeBreakEditor();
+            return;
+        }
+        setBreakSheetPhase("settling");
+        setBreakSheetOffset(0);
+        window.setTimeout(() => {
+            setBreakSheetPhase((current) => current === "settling" ? "open" : current);
+        }, 180);
+    };
+    function handleBreakSheetWindowPointerMove(event: globalThis.PointerEvent) {
+        const swipe = breakSheetSwipeRef.current;
+        const sheet = breakSheetElementRef.current;
+        if (!swipe || !sheet || swipe.pointerId !== event.pointerId)
+            return;
+        moveBreakSheetSwipe(event.clientX, event.clientY, sheet, () => { event.preventDefault(); event.stopPropagation(); });
+    }
+    function handleBreakSheetWindowPointerUp(event: globalThis.PointerEvent) {
+        const swipe = breakSheetSwipeRef.current;
+        if (!swipe || swipe.pointerId !== event.pointerId)
+            return;
+        finishBreakSheetSwipe(event.clientY, () => { event.preventDefault(); event.stopPropagation(); });
+    }
+    function handleBreakSheetWindowPointerCancel(event: globalThis.PointerEvent) {
+        const swipe = breakSheetSwipeRef.current;
+        if (!swipe || swipe.pointerId !== event.pointerId)
+            return;
+        breakSheetSwipeRef.current = null;
+        cleanupBreakSheetWindowListeners();
+        setBreakSheetPhase("settling");
+        setBreakSheetOffset(0);
+    }
+    function handleBreakSheetWindowMouseMove(event: globalThis.MouseEvent) {
+        const swipe = breakSheetSwipeRef.current;
+        const sheet = breakSheetElementRef.current;
+        if (!swipe || !sheet || swipe.pointerId !== undefined)
+            return;
+        moveBreakSheetSwipe(event.clientX, event.clientY, sheet, () => { event.preventDefault(); event.stopPropagation(); });
+    }
+    function handleBreakSheetWindowMouseUp(event: globalThis.MouseEvent) {
+        const swipe = breakSheetSwipeRef.current;
+        if (!swipe || swipe.pointerId !== undefined)
+            return;
+        finishBreakSheetSwipe(event.clientY, () => { event.preventDefault(); event.stopPropagation(); });
+    }
+    function handleBreakSheetWindowTouchMove(event: globalThis.TouchEvent) {
+        const touch = event.touches[0];
+        const sheet = breakSheetElementRef.current;
+        if (!touch || !sheet)
+            return;
+        moveBreakSheetSwipe(touch.clientX, touch.clientY, sheet, () => { event.preventDefault(); event.stopPropagation(); });
+    }
+    function handleBreakSheetWindowTouchEnd(event: globalThis.TouchEvent) {
+        const touch = event.changedTouches[0];
+        if (!touch)
+            return;
+        finishBreakSheetSwipe(touch.clientY, () => { event.preventDefault(); event.stopPropagation(); });
+    }
+    function handleBreakSheetWindowTouchCancel() {
+        breakSheetSwipeRef.current = null;
+        cleanupBreakSheetWindowListeners();
+        setBreakSheetPhase("settling");
+        setBreakSheetOffset(0);
+    }
+    const beginBreakSheetPointerSwipe = (event: PointerEvent<HTMLElement>) => {
+        event.stopPropagation();
+        if (shouldIgnoreBreakSheetSwipe(event.target))
+            return;
+        breakSheetSwipeRef.current = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, startedAt: Date.now(), dragging: false };
+        event.currentTarget.setPointerCapture(event.pointerId);
+        breakSheetElementRef.current = event.currentTarget;
+        listenBreakSheetWindowGesture();
+    };
+    const beginBreakSheetMouseSwipe = (event: MouseEvent<HTMLElement>) => {
+        event.stopPropagation();
+        if (event.button !== 0 || shouldIgnoreBreakSheetSwipe(event.target))
+            return;
+        if (breakSheetSwipeRef.current?.pointerId !== undefined)
+            return;
+        breakSheetSwipeRef.current = { startX: event.clientX, startY: event.clientY, startedAt: Date.now(), dragging: false };
+        breakSheetElementRef.current = event.currentTarget;
+        listenBreakSheetWindowGesture();
+    };
+    const handleBreakSheetPointerMove = (event: PointerEvent<HTMLElement>) => {
+        event.stopPropagation();
+        const swipe = breakSheetSwipeRef.current;
+        if (!swipe || swipe.pointerId !== event.pointerId)
+            return;
+        moveBreakSheetSwipe(event.clientX, event.clientY, event.currentTarget, () => { event.preventDefault(); });
+    };
+    const handleBreakSheetPointerUp = (event: PointerEvent<HTMLElement>) => {
+        event.stopPropagation();
+        const swipe = breakSheetSwipeRef.current;
+        if (!swipe || swipe.pointerId !== event.pointerId)
+            return;
+        event.currentTarget.releasePointerCapture(event.pointerId);
+        finishBreakSheetSwipe(event.clientY, () => { event.preventDefault(); });
+    };
+    const cancelBreakSheetPointerSwipe = (event: PointerEvent<HTMLElement>) => {
+        const swipe = breakSheetSwipeRef.current;
+        if (!swipe || swipe.pointerId !== event.pointerId)
+            return;
+        breakSheetSwipeRef.current = null;
+        cleanupBreakSheetWindowListeners();
+        setBreakSheetPhase("settling");
+        setBreakSheetOffset(0);
+    };
+    const handleBreakSheetMouseMove = (event: MouseEvent<HTMLElement>) => {
+        event.stopPropagation();
+        const swipe = breakSheetSwipeRef.current;
+        if (!swipe || swipe.pointerId !== undefined)
+            return;
+        moveBreakSheetSwipe(event.clientX, event.clientY, event.currentTarget, () => { event.preventDefault(); });
+    };
+    const handleBreakSheetMouseUp = (event: MouseEvent<HTMLElement>) => {
+        event.stopPropagation();
+        const swipe = breakSheetSwipeRef.current;
+        if (!swipe || swipe.pointerId !== undefined)
+            return;
+        finishBreakSheetSwipe(event.clientY, () => { event.preventDefault(); });
+    };
+    const handleBreakSheetTouchStart = (event: TouchEvent<HTMLElement>) => {
+        event.stopPropagation();
+        const touch = event.touches[0];
+        if (!touch || shouldIgnoreBreakSheetSwipe(event.target))
+            return;
+        breakSheetSwipeRef.current = { startX: touch.clientX, startY: touch.clientY, startedAt: Date.now(), dragging: false };
+        breakSheetElementRef.current = event.currentTarget;
+        listenBreakSheetWindowGesture();
+    };
+    const handleBreakSheetTouchMove = (event: TouchEvent<HTMLElement>) => {
+        event.stopPropagation();
+        const touch = event.touches[0];
+        if (!touch)
+            return;
+        moveBreakSheetSwipe(touch.clientX, touch.clientY, event.currentTarget, () => { event.preventDefault(); });
+    };
+    const handleBreakSheetTouchEnd = (event: TouchEvent<HTMLElement>) => {
+        event.stopPropagation();
+        const touch = event.changedTouches[0];
+        if (!touch)
+            return;
+        finishBreakSheetSwipe(touch.clientY, () => { event.preventDefault(); });
+    };
+    const breakSheetDragStyle = breakSheetPhase === "open" && breakSheetOffset === 0 ? undefined : {
+        transform: breakSheetPhase === "closing" ? "translateY(100%)" : breakSheetOffset > 0 ? `translateY(${breakSheetOffset}px)` : "translateY(0)",
+        transition: breakSheetPhase === "dragging" ? "none" : "transform .22s cubic-bezier(.22, 1, .36, 1)",
+        animation: "none",
+        willChange: "transform",
+    } as CSSProperties;
+    const breakBackdropOpacity = breakSheetPhase === "closing" ? 0 : Math.max(0.08, 0.36 - Math.min(breakSheetOffset, 260) / 260 * 0.22);
+    const breakSheetScreenStyle = {
+        background: `rgba(17, 27, 33, ${breakBackdropOpacity.toFixed(3)})`,
+        transition: breakSheetPhase === "dragging" ? "none" : "background .22s ease-out",
+    } as CSSProperties;
+    const saveBreakEditor = () => {
+        if (!isBreakPeriodValid(breakDraft)) {
+            props.showToast("Конец перерыва должен быть позже начала");
+            return;
+        }
+        if (breakEditorMode === "weekday") {
+            const currentBreaks = getDayBreaks(activeWeekdayValue);
+            if (hasOverlappingBreakPeriod(currentBreaks, breakDraft)) {
+                props.showToast("Перерывы не должны пересекаться");
+                return;
+            }
+            const nextBreaks = [...currentBreaks, breakDraft];
+            updateDay(activeWeekday.index, { breaks: nextBreaks, breakEnabled: true, breakStart: nextBreaks[0].start, breakEnd: nextBreaks[0].end });
+        }
+        if (breakEditorMode === "individual") {
+            if (hasOverlappingBreakPeriod(individualWorkDraftBreaks, breakDraft)) {
+                props.showToast("Перерывы не должны пересекаться");
+                return;
+            }
+            if (props.selectedWorkHoursDate && !individualWorkHoursOpen) {
+                const nextBreaks = [...getDayBreaks(workHoursDraft), breakDraft];
+                setIndividualWorkHoursOpen(true);
+                setIndividualWorkDraft(withSyncedBreakFields({ ...workHoursDraft, breaks: nextBreaks, breakEnabled: true, breakStart: nextBreaks[0].start, breakEnd: nextBreaks[0].end }));
+                closeBreakEditor();
+                return;
+            }
+            setIndividualWorkDraft((current) => {
+                const nextBreaks = [...getDayBreaks(current), breakDraft];
+                return withSyncedBreakFields({ ...current, breaks: nextBreaks, breakEnabled: true, breakStart: nextBreaks[0].start, breakEnd: nextBreaks[0].end });
+            });
+        }
+        closeBreakEditor();
     };
     const removeIndividualBreak = (breakId: string) => {
+        if (props.selectedWorkHoursDate && !individualWorkHoursOpen) {
+            const nextBreaks = getDayBreaks(workHoursDraft).filter((item) => item.id !== breakId);
+            setIndividualWorkHoursOpen(true);
+            setIndividualWorkDraft(withSyncedBreakFields({ ...workHoursDraft, breaks: nextBreaks, breakEnabled: nextBreaks.length > 0, breakStart: nextBreaks[0]?.start || "13:00", breakEnd: nextBreaks[0]?.end || "14:00" }));
+            return;
+        }
         setIndividualWorkDraft((current) => {
             const nextBreaks = getDayBreaks(current).filter((item) => item.id !== breakId);
             return withSyncedBreakFields({ ...current, breaks: nextBreaks, breakEnabled: nextBreaks.length > 0, breakStart: nextBreaks[0]?.start || "13:00", breakEnd: nextBreaks[0]?.end || "14:00" });
@@ -1583,8 +1895,28 @@ function ScheduleSection(props: {
         setIndividualWorkDraft(withSyncedBreakFields(individualWorkSchedule));
         setIndividualWorkHoursOpen(true);
     };
+    const closeIndividualWorkHours = () => {
+        if (props.selectedWorkHoursDate) {
+            props.onCloseSelectedWorkHours();
+            return;
+        }
+        setIndividualWorkHoursOpen(false);
+    };
     const saveIndividualWorkHours = () => {
-        setIndividualWorkSchedule(withSyncedBreakFields(individualWorkDraft));
+        const draftToSave = withSyncedBreakFields(workHoursDraft);
+        if (props.selectedWorkHoursDate) {
+            const nextSchedule = {
+                ...props.weeklySchedule,
+                __dateOverrides: {
+                    ...getStoredDateOverrides(props.weeklySchedule),
+                    [props.selectedWorkHoursDate]: draftToSave,
+                },
+            } as unknown as WeeklySchedule;
+            props.saveSchedule({ weeklySchedule: nextSchedule });
+            props.onCloseSelectedWorkHours();
+            return;
+        }
+        setIndividualWorkSchedule(draftToSave);
         setIndividualWorkHoursOpen(false);
     };
     const saveWeekdaySchedule = () => {
@@ -1601,6 +1933,9 @@ function ScheduleSection(props: {
             schedule[String(day.index)] = withSyncedBreakFields({ ...current, enabled: true, start: normalizedIndividualSchedule.start, end: normalizedIndividualSchedule.end, breakEnabled: normalizedIndividualSchedule.breakEnabled, breakStart: normalizedIndividualSchedule.breakStart, breakEnd: normalizedIndividualSchedule.breakEnd, breaks: normalizedIndividualSchedule.breaks || [] });
             return schedule;
         }, {});
+        const dateOverrides = getStoredDateOverrides(props.weeklySchedule);
+        if (Object.keys(dateOverrides).length)
+            (individualWeeklySchedule as WeeklySchedule & StoredWeeklyScheduleMetadata).__dateOverrides = dateOverrides;
         props.saveSchedule({ weeklySchedule: individualWeeklySchedule, scheduleMode: "cycle", individualPlan: storedPlan });
         setSelectedScheduleMode("cycle");
         props.setSchedulePanel(null);
@@ -1613,8 +1948,8 @@ function ScheduleSection(props: {
         void props.saveBookingPageSettings(next);
     };
 
-    return (<div className="schedule-settings-home max-w-5xl space-y-3">
-        <div className="schedule-setup-grid">
+    return (<div className={`schedule-settings-home max-w-5xl space-y-3 ${props.selectedWorkHoursDate ? "date-work-hours-overlay-only" : ""}`}> 
+        {!props.selectedWorkHoursDate && (<div className="schedule-setup-grid">
             <div className="schedule-setup-card-shell">
                 <button type="button" onClick={() => { props.setOpenWeekdayEditor(null); props.setSchedulePanel("weekdays"); }} className={`schedule-setup-card schedule-setup-card-weekdays ${selectedScheduleMode === "weekdays" ? "schedule-setup-card-selected" : ""}`} aria-pressed={selectedScheduleMode === "weekdays"}>
                     <span className="schedule-setup-art" aria-hidden="true"><span className="schedule-week-art">{weekDays.map((day, index) => <span key={day} className={index < 5 ? "is-workday" : ""}>{day}</span>)}</span></span>
@@ -1627,14 +1962,14 @@ function ScheduleSection(props: {
                     <span className="schedule-setup-card-copy"><span className="schedule-setup-title-line"><span>Индивидуальный график</span>{selectedScheduleMode === "cycle" && <span className="schedule-selected-badge">Выбрано</span>}</span><CaretRight className="schedule-setup-card-chevron" weight="bold" aria-hidden="true"/></span>
                 </button>
             </div>
-        </div>
+        </div>)}
 
-        {props.schedulePanel === "weekdays" && (<div className="weekday-settings-screen weekday-booksy fixed inset-0 z-50 overflow-y-auto bg-surface">
+        {!props.selectedWorkHoursDate && props.schedulePanel === "weekdays" && (<div className="weekday-settings-screen weekday-booksy fixed inset-0 z-50 overflow-y-auto bg-surface">
             <div className="weekday-booksy-shell">
                 {props.openWeekdayEditor ? (<>
                     <header className="weekday-booksy-editor-header"><button type="button" onClick={() => props.setOpenWeekdayEditor(null)} className="weekday-booksy-back" aria-label="Назад" title="Назад"><BackArrowIcon /></button><div className="weekday-booksy-title"><h1>{activeWeekday.label}</h1><p>Рабочее время и перерывы</p></div><button type="button" onClick={() => updateDay(activeWeekday.index, { enabled: !activeWeekdayValue.enabled })} className="weekday-booksy-toggle" aria-pressed={activeWeekdayValue.enabled}><SettingsSwitch checked={activeWeekdayValue.enabled}/><span>{activeWeekdayValue.enabled ? "Открыто" : "Выходной"}</span></button></header>
                     <section className="weekday-booksy-time"><TimeRangeWheelPicker className="weekday-booksy-wheel" start={activeWeekdayValue.start} end={activeWeekdayValue.end} startLabel="" endLabel="" onStartChange={(start) => updateDay(activeWeekday.index, { start })} onEndChange={(end) => updateDay(activeWeekday.index, { end })}/></section>
-                    <section className="weekday-booksy-breaks"><h2>Перерывы</h2><div className="weekday-booksy-break-list">{activeWeekdayBreaks.map((item) => (<div key={item.id} className="weekday-booksy-break-row weekday-booksy-break-row-editing"><TimeRangeWheelPicker className="weekday-booksy-break-wheel" start={item.start} end={item.end} startLabel="" endLabel="" onStartChange={(start) => updateBreak(activeWeekday.index, activeWeekdayValue, item.id, { start })} onEndChange={(end) => updateBreak(activeWeekday.index, activeWeekdayValue, item.id, { end })}/><button type="button" onClick={() => removeBreak(activeWeekday.index, activeWeekdayValue, item.id)} className="weekday-booksy-break-cancel">Удалить</button></div>))}<button type="button" onClick={() => addBreak(activeWeekday.index, activeWeekdayValue)} className="weekday-booksy-add-break"><span aria-hidden="true">+</span><strong>Добавить перерыв</strong></button></div></section>
+                    <section className="weekday-booksy-breaks"><h2>Перерывы</h2><div className="weekday-booksy-break-list">{activeWeekdayBreaks.map((item) => (<div key={item.id} className="weekday-booksy-break-row"><div className="weekday-booksy-break-summary-bar"><span className="weekday-booksy-break-summary"><span>Перерыв</span><strong>{item.start} - {item.end}</strong></span><button type="button" onClick={() => removeBreak(activeWeekday.index, activeWeekdayValue, item.id)} className="weekday-booksy-break-delete" aria-label="Удалить перерыв" title="Удалить"><Trash weight="bold" aria-hidden="true"/></button></div></div>))}<button type="button" onClick={openWeekdayBreakEditor} className="weekday-booksy-add-break" aria-haspopup="dialog" aria-expanded={breakEditorMode === "weekday"}><span aria-hidden="true">+</span><strong>Добавить перерыв</strong></button></div></section>
                     <div className="weekday-booksy-footer"><button type="button" onClick={() => { props.setSchedulePanel(null); props.setOpenWeekdayEditor(null); }} className="individual-schedule-footer-cancel">Отмена</button><button type="button" onClick={saveWeekdaySchedule}>Сохранить и использовать этот график</button></div>
                 </>) : (<>
                     <header className="weekday-booksy-header"><button type="button" onClick={() => props.setSchedulePanel(null)} className="weekday-booksy-back" aria-label="Назад" title="Назад"><BackArrowIcon /></button><div className="weekday-booksy-title"><h1>По дням недели</h1><p>Рабочие часы для каждого дня</p></div></header>
@@ -1644,21 +1979,86 @@ function ScheduleSection(props: {
             </div>
         </div>)}
 
-        {props.schedulePanel === "individual" && (<div className={`individual-schedule-screen fixed inset-0 z-50 overflow-y-auto bg-surface ${individualWorkHoursOpen ? "individual-work-hours-screen weekday-booksy" : ""}`}>
-            {individualWorkHoursOpen ? (<>
+        {props.schedulePanel === "individual" && (<div className={`individual-schedule-screen fixed inset-0 z-50 overflow-y-auto bg-surface ${workHoursEditorOpen ? "individual-work-hours-screen weekday-booksy" : ""}`} data-dashboard-swipe-ignore="true">
+            {workHoursEditorOpen ? (<>
                 <div className="individual-schedule-content w-full bg-surface px-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-[calc(env(safe-area-inset-top)+0.25rem)] md:px-8 md:pb-8 md:pt-4">
-                    <div className="individual-schedule-header grid grid-cols-[2.5rem_1fr] items-start gap-2"><button type="button" onClick={() => setIndividualWorkHoursOpen(false)} className="individual-schedule-back flex h-10 w-10 min-h-0 items-center justify-center rounded-full bg-surface text-textPrimary" aria-label="Назад" title="Назад"><BackArrowIcon className="h-6 w-6"/></button><div className="min-w-0"><h2 className="text-navigationTitle text-textPrimary">Установить часы работы</h2><p className="mt-1 text-settingsRowDescription text-textSecondary">Эти часы и перерывы будут применяться ко всем рабочим дням индивидуального графика.</p></div></div>
-                    <article className="individual-schedule-card mt-7 space-y-4"><section className="weekday-booksy-time"><TimeRangeWheelPicker className="weekday-booksy-wheel" start={individualWorkDraft.start} end={individualWorkDraft.end} startLabel="" endLabel="" onStartChange={(start) => updateIndividualWorkDraft({ start })} onEndChange={(end) => updateIndividualWorkDraft({ end })}/></section><section className="weekday-booksy-breaks"><h2>Перерывы</h2><div className="weekday-booksy-break-list">{individualWorkDraftBreaks.map((item) => (<div key={item.id} className="weekday-booksy-break-row weekday-booksy-break-row-editing"><TimeRangeWheelPicker className="weekday-booksy-break-wheel" start={item.start} end={item.end} startLabel="" endLabel="" onStartChange={(start) => updateIndividualBreak(item.id, { start })} onEndChange={(end) => updateIndividualBreak(item.id, { end })}/><button type="button" onClick={() => removeIndividualBreak(item.id)} className="weekday-booksy-break-cancel">Удалить</button></div>))}<button type="button" onClick={addIndividualBreak} className="weekday-booksy-add-break"><span aria-hidden="true">+</span><strong>Добавить перерыв</strong></button></div></section></article>
-                    <div className="individual-work-hours-footer mt-3 grid gap-2"><button type="button" onClick={() => setIndividualWorkHoursOpen(false)} className="individual-schedule-footer-cancel">Отмена</button><button type="button" onClick={saveIndividualWorkHours} className="flex h-12 w-full items-center justify-center rounded-xl bg-primary px-4 text-conversationName leading-none text-surface">Сохранить</button></div>
+                    <div className="individual-schedule-header grid grid-cols-[2.5rem_1fr] items-start gap-2"><button type="button" onClick={closeIndividualWorkHours} className="individual-schedule-back flex h-10 w-10 min-h-0 items-center justify-center rounded-full bg-surface text-textPrimary" aria-label="Назад" title="Назад"><BackArrowIcon className="h-6 w-6"/></button><div className="min-w-0"><h2 className="text-navigationTitle text-textPrimary">Установить часы работы</h2><p className="mt-1 text-settingsRowDescription text-textSecondary">{props.selectedWorkHoursDate ? `Только на ${selectedWorkHoursDateLabel}. Другие даты не изменятся.` : "Эти часы и перерывы будут применяться ко всем рабочим дням индивидуального графика."}</p></div></div>
+                    <article className="individual-schedule-card mt-7 space-y-4"><section className="weekday-booksy-time"><TimeRangeWheelPicker className="weekday-booksy-wheel" start={workHoursDraft.start} end={workHoursDraft.end} startLabel="" endLabel="" onStartChange={(start) => updateIndividualWorkDraft({ start })} onEndChange={(end) => updateIndividualWorkDraft({ end })}/></section><section className="weekday-booksy-breaks"><h2>Перерывы</h2><div className="weekday-booksy-break-list">{individualWorkDraftBreaks.map((item) => (<div key={item.id} className="weekday-booksy-break-row"><div className="weekday-booksy-break-summary-bar"><span className="weekday-booksy-break-summary"><span>Перерыв</span><strong>{item.start} - {item.end}</strong></span><button type="button" onClick={() => removeIndividualBreak(item.id)} className="weekday-booksy-break-delete" aria-label="Удалить перерыв" title="Удалить"><Trash weight="bold" aria-hidden="true"/></button></div></div>))}<button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={openIndividualBreakEditor} className="weekday-booksy-add-break" aria-haspopup="dialog" aria-expanded={breakEditorMode === "individual"}><span aria-hidden="true">+</span><strong>Добавить перерыв</strong></button></div></section></article>
+                    <div className="individual-work-hours-footer mt-3 grid gap-2"><button type="button" onClick={closeIndividualWorkHours} className="individual-schedule-footer-cancel">Отмена</button><button type="button" onClick={saveIndividualWorkHours} className="flex h-12 w-full items-center justify-center rounded-xl bg-primary px-4 text-conversationName leading-none text-surface">Сохранить</button></div>
                 </div>
             </>) : (<>
                 <div className="individual-schedule-content w-full bg-surface px-3 pb-[calc(env(safe-area-inset-bottom)+5.75rem)] pt-[calc(env(safe-area-inset-top)+0.25rem)] md:px-8 md:pb-28 md:pt-4">
                     <div className="individual-schedule-header grid grid-cols-[2.5rem_1fr] items-start gap-2"><button type="button" onClick={() => props.setSchedulePanel(null)} className="individual-schedule-back flex h-10 w-10 min-h-0 items-center justify-center rounded-full bg-surface text-textPrimary" aria-label="Назад" title="Назад"><BackArrowIcon className="h-6 w-6"/></button><div className="min-w-0"><h2 className="text-navigationTitle text-textPrimary">Индивидуальный график</h2></div></div>
-                    <article className="individual-schedule-card mt-7 space-y-4"><div className="individual-preset-list grid gap-2">{[["all", "Все дни"], ["weekdays", "Будни"], ["odd", "Нечетные"], ["even", "Четные"], ["custom", "Своя схема"]].map(([value, label]) => (<button key={value} type="button" onClick={() => setCyclePreset(value as CyclePreset)} className={`individual-preset-button ${cyclePreset === value ? "individual-preset-button-active" : ""}`}>{label}</button>))}</div><button type="button" onClick={openIndividualWorkHours} className="schedule-menu-row saas-card flex w-full items-center justify-between gap-3 p-3 text-left md:p-4"><span className="settings-menu-copy min-w-0 flex-1 text-left"><span className="schedule-title-settings-copy settings-menu-title-copy block text-textPrimary" style={settingsMenuTitleStyle}>Установить часы работы</span><span className="schedule-subtitle-settings-copy settings-menu-subtitle-copy block text-textSecondary">{individualWorkSchedule.start} - {individualWorkSchedule.end}{individualWorkBreaks.length ? ` · перерывов: ${individualWorkBreaks.length}` : " · без перерывов"}</span></span><CaretRight className="settings-menu-chevron h-5 w-5 shrink-0 text-textDisabled" weight="bold" aria-hidden="true"/></button><section className="individual-custom-schedule grid gap-4"><div className="grid gap-2 rounded-2xl bg-background p-3 md:grid-cols-2"><NumberField label="Рабочих дней" value={customWorkDays} onFocus={() => setCyclePreset("custom")} onChange={setCustomWorkDays}/><NumberField label="Нерабочих дней" value={customOffDays} onFocus={() => setCyclePreset("custom")} onChange={setCustomOffDays}/><p className="text-settingsRowDescription text-textSecondary md:col-span-2">Схема: {customWorkDays} рабочих / {customOffDays} выходных. Нажмите на дату в календаре, чтобы сделать ее первым рабочим днем.</p></div>{cyclePreset === "custom" && <p className="individual-start-date-hint text-settingsRowTitle text-textPrimary">Нажмите на дату с которой начать отчёт</p>}<div className="individual-calendar-grid grid gap-3 xl:grid-cols-3">{individualCalendarMonths.map((month) => (<section key={month.key} className="individual-calendar-month rounded-2xl bg-background p-3"><div className="mb-2 flex items-center justify-between gap-2"><h4 className="text-conversationName capitalize text-textPrimary">{month.title}</h4><span className="text-messageMetadata text-textSecondary">{month.workingDays} / {month.totalDays}</span></div><div className="grid grid-cols-7 gap-1 text-center text-messageMetadata text-textSecondary">{weekDays.map((day) => <span key={day}>{day}</span>)}</div><div className="mt-1 grid grid-cols-7 gap-1">{month.cells.map((cell) => { const isStart = cyclePreset === "custom" && cell.date === individualStartDate; return (<button key={cell.date} type="button" onClick={() => setIndividualStartDate(cell.date)} className={`individual-calendar-day ${cell.rule.enabled ? "individual-calendar-day-work" : ""} ${isStart ? "individual-calendar-day-start" : ""} ${cell.inMonth ? "" : "individual-calendar-day-muted"}`} aria-pressed={isStart}><span>{cell.day}</span></button>); })}</div></section>))}</div></section></article>
+                    <article className="individual-schedule-card mt-7 space-y-4">
+                        <div className="individual-preset-list grid gap-2">
+                            {[["all", "Все дни"], ["weekdays", "Будни"], ["odd", "Нечетные"], ["even", "Четные"], ["custom", "Своя схема"]].map(([value, label]) => (
+                                <button key={value} type="button" onClick={() => setCyclePreset(value as CyclePreset)} className={`individual-preset-button ${cyclePreset === value ? "individual-preset-button-active" : ""}`}>{label}</button>
+                            ))}
+                        </div>
+                        <section className={`individual-custom-schedule grid gap-4 ${cyclePreset === "custom" ? "" : "individual-custom-schedule-preview"}`}>
+                            {cyclePreset === "custom" && (
+                                <div className="grid gap-2 rounded-2xl bg-background p-3 md:grid-cols-2">
+                                    <NumberField label="Рабочих дней" value={customWorkDays} onChange={setCustomWorkDays}/>
+                                    <NumberField label="Нерабочих дней" value={customOffDays} onChange={setCustomOffDays}/>
+                                    <p className="text-settingsRowDescription text-textSecondary md:col-span-2">Схема: {customWorkDays} рабочих / {customOffDays} выходных. Нажмите на дату в календаре, чтобы сделать ее первым рабочим днем.</p>
+                                </div>
+                            )}
+                            <button type="button" onClick={openIndividualWorkHours} className="schedule-menu-row saas-card flex w-full items-center justify-between gap-3 p-3 text-left md:p-4">
+                                <span className="settings-menu-copy min-w-0 flex-1 text-left">
+                                    <span className="schedule-title-settings-copy settings-menu-title-copy block text-textPrimary" style={settingsMenuTitleStyle}>Установить часы работы</span>
+                                    <span className="schedule-subtitle-settings-copy settings-menu-subtitle-copy block text-textSecondary">{individualWorkSchedule.start} - {individualWorkSchedule.end}{individualWorkBreaks.length ? ` · перерывов: ${individualWorkBreaks.length}` : " · без перерывов"}</span>
+                                </span>
+                                <CaretRight className="settings-menu-chevron h-5 w-5 shrink-0 text-textDisabled" weight="bold" aria-hidden="true"/>
+                            </button>
+                            {cyclePreset === "custom" && <p className="individual-start-date-hint text-settingsRowTitle text-textPrimary">Нажмите на дату с которой начать отчёт</p>}
+                            <div className="individual-calendar-grid grid gap-3 xl:grid-cols-3">
+                                {individualCalendarMonths.map((month) => (
+                                    <section key={month.key} className="individual-calendar-month rounded-2xl bg-background p-3">
+                                        <div className="mb-2 flex items-center justify-between gap-2">
+                                            <h4 className="text-conversationName capitalize text-textPrimary">{month.title}</h4>
+                                            <span className="text-messageMetadata text-textSecondary">{month.workingDays} / {month.totalDays}</span>
+                                        </div>
+                                        <div className="grid grid-cols-7 gap-1 text-center text-messageMetadata text-textSecondary">{weekDays.map((day) => <span key={day}>{day}</span>)}</div>
+                                        <div className="mt-1 grid grid-cols-7 gap-1">
+                                            {month.cells.map((cell) => {
+                                                const isStart = cyclePreset === "custom" && cell.date === individualStartDate;
+                                                return (<button key={cell.date} type="button" onClick={() => setIndividualStartDate(cell.date)} className={`individual-calendar-day ${cell.rule.enabled ? "individual-calendar-day-work" : ""} ${isStart ? "individual-calendar-day-start" : ""} ${cell.inMonth ? "" : "individual-calendar-day-muted"}`} aria-pressed={isStart}><span>{cell.day}</span></button>);
+                                            })}
+                                        </div>
+                                    </section>
+                                ))}
+                            </div>
+                        </section>
+                    </article>
                 </div>
                 <div className="individual-schedule-footer fixed inset-x-0 bottom-0 z-[60] bg-surface px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 md:px-8"><button type="button" onClick={() => props.setSchedulePanel(null)} className="individual-schedule-footer-cancel">Отмена</button><button type="button" onClick={saveIndividualSchedule} className="flex h-12 w-full items-center justify-center rounded-xl bg-primary px-4 text-conversationName leading-none text-surface">Сохранить и использовать этот график</button></div>
             </>)}
         </div>)}
+
+        {breakEditorMode && typeof document !== "undefined" && createPortal((
+            <div className="master-workspace">
+                <DraggableBottomSheetFrame screenClassName="schedule-exception-time-modal weekday-break-time-modal" panelClassName="schedule-exception-time-panel weekday-booksy weekday-break-time-panel" labelledBy="weekday-break-title" onClose={closeBreakEditor}>
+                    <div className="schedule-exception-time-content weekday-break-editor grid gap-3">
+                        <div className="client-bottom-sheet-header">
+                            <div className="min-w-0">
+                                <p id="weekday-break-title" className="text-conversationName text-textPrimary">Добавить перерыв</p>
+                                <p className="mt-1 text-settingsRowDescription text-textSecondary">Выберите время начала и окончания перерыва.</p>
+                            </div>
+                            <button type="button" onClick={closeBreakEditor} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-background text-textPrimary hover:bg-background" aria-label="Закрыть" title="Закрыть">
+                                <CloseIcon />
+                            </button>
+                        </div>
+                        <section className="weekday-booksy-time">
+                            <TimeRangeWheelPicker className="weekday-booksy-wheel" start={breakDraft.start} end={breakDraft.end} startLabel="" endLabel="" onStartChange={(start) => setBreakDraft((current) => ({ ...current, start }))} onEndChange={(end) => setBreakDraft((current) => ({ ...current, end }))}/>
+                        </section>
+                        <div className="weekday-break-actions grid grid-cols-2 gap-2 md:flex md:flex-row">
+                            <button type="button" onClick={closeBreakEditor} className="weekday-break-cancel w-full rounded-xl px-4 py-3 text-buttonLabel">Отмена</button>
+                            <button type="button" onClick={saveBreakEditor} className="schedule-exception-close-time-button weekday-break-submit w-full rounded-xl px-4 py-3 text-buttonLabel text-surface"><span>Добавить</span></button>
+                        </div>
+                    </div>
+                </DraggableBottomSheetFrame>
+            </div>
+        ), document.body)}
 
         <div className="schedule-secondary-spacer" aria-hidden="true"/>
         <section className="schedule-secondary-menu">
@@ -1669,9 +2069,7 @@ function ScheduleSection(props: {
         </section>
         {bookingWindowOpen && typeof document !== "undefined" && createPortal((
             <div className="master-workspace">
-                <div className="client-bottom-sheet-screen client-bottom-sheet-screen-open address-bottom-sheet-screen booking-window-bottom-sheet-screen" data-dashboard-swipe-ignore="true" role="dialog" aria-modal="true" aria-labelledby="booking-window-title" onClick={() => setBookingWindowOpen(false)} onPointerDown={(event) => event.stopPropagation()} onPointerMove={(event) => event.stopPropagation()} onPointerUp={(event) => event.stopPropagation()} onTouchStart={(event) => { event.stopPropagation(); if (event.target === event.currentTarget) event.preventDefault(); }} onTouchMove={(event) => { event.stopPropagation(); if (event.target === event.currentTarget) event.preventDefault(); }} onTouchEnd={(event) => event.stopPropagation()}>
-                    <div className="client-bottom-sheet-spacer" aria-hidden="true"/>
-                    <section className="client-bottom-sheet address-bottom-sheet booking-window-bottom-sheet" data-dashboard-swipe-ignore="true" onClick={(event) => event.stopPropagation()}>
+                <DraggableBottomSheetFrame screenClassName="address-bottom-sheet-screen booking-window-bottom-sheet-screen" panelClassName="address-bottom-sheet booking-window-bottom-sheet" labelledBy="booking-window-title" onClose={() => setBookingWindowOpen(false)}>
                         <div className="grid gap-3">
                             <header className="client-bottom-sheet-header">
                                 <div className="min-w-0">
@@ -1701,8 +2099,7 @@ function ScheduleSection(props: {
                                 </button>
                             </footer>
                         </div>
-                    </section>
-                </div>
+                </DraggableBottomSheetFrame>
             </div>
         ), document.body)}
         {exceptionsOpen && (<div className="exceptions-screen fixed inset-0 z-50 overflow-y-auto bg-surface"><div className="exceptions-screen-content w-full bg-surface px-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-[calc(env(safe-area-inset-top)+0.25rem)] md:px-8 md:pb-8 md:pt-4"><div className="exceptions-screen-title grid grid-cols-[2.5rem_1fr] items-center gap-2"><button type="button" onClick={() => setExceptionsOpen(false)} className="flex h-10 w-10 min-h-0 items-center justify-center rounded-full bg-surface text-textPrimary" aria-label="Назад" title="Назад"><BackArrowIcon className="h-6 w-6"/></button><h2 className="min-w-0 truncate text-navigationTitle text-textPrimary">Исключения графика</h2></div><div className="exceptions-screen-body"><ScheduleExceptionEditor addBlockedTime={props.addBlockedTime} blockForm={props.blockForm} blockedTimes={props.blockedTimes} setBlockForm={props.setBlockForm}/><section className="exceptions-blocked-list grid gap-2">{props.blockedTimes.map((item) => { const confirming = deleteBlockedTimeTarget?.id === item.id; return (<article key={item.id} className={`exceptions-blocked-card ${confirming ? "exceptions-blocked-card-confirming" : ""}`}><div className="min-w-0 flex-1"><p className="truncate text-conversationName text-textPrimary">{formatLongDate(parseDateKey(item.date))}</p><span className="exceptions-blocked-time">{item.start}-{item.end}</span> <span className="exceptions-blocked-reason min-w-0 truncate text-messageMetadata">{item.reason}</span>{confirming && (<div className="exceptions-delete-confirm" role="alert"><p>Удалить это исключение графика?</p><div><button type="button" onClick={() => { props.deleteBlockedTime(item.id); setDeleteBlockedTimeTarget(null); }}>Удалить</button><button type="button" onClick={() => setDeleteBlockedTimeTarget(null)}>Отмена</button></div></div>)}</div><button type="button" onClick={() => setDeleteBlockedTimeTarget(item)} className="exceptions-blocked-delete" aria-label="Удалить исключение" title="Удалить"><ActionIcon name="trash"/></button></article>); })}</section></div></div></div>)}
@@ -1929,6 +2326,7 @@ function ClientsSection(props: {
         time: number;
     } | null>(null);
     const clientFilterSwipeSuppressClickUntil = useRef(0);
+    const clientCardOpenSuppressUntil = useRef(0);
     const clientFilters = useMemo(() => [["all", "Все"], ["regular", "Постоянные"], ["new", "Новые"],] as const, []);
     const setClientFilterUnderlinePosition = (index: number, transition = true) => { const tabList = clientFiltersRef.current; const buttons = tabList ? Array.from(tabList.querySelectorAll<HTMLButtonElement>("button")) : []; const button = buttons[index]; if (!tabList || !button)
         return; const listRect = tabList.getBoundingClientRect(); const buttonRect = button.getBoundingClientRect(); tabList.style.setProperty("--client-filter-underline-left", `${buttonRect.left - listRect.left + 13.6}px`); tabList.style.setProperty("--client-filter-underline-width", `${Math.max(16, buttonRect.width - 27.2)}px`); tabList.style.setProperty("--client-filter-underline-transition", transition ? "transform .24s ease, width .24s ease" : "none"); };
@@ -2017,7 +2415,7 @@ function ClientsSection(props: {
         return; const switched = finishClientFilterSwipe(touch.clientX, touch.clientY); if (!switched)
         resetClientFilterMotion(true); if (start?.captured || switched)
         event.stopPropagation(); };
-    const handleClientSwipeClickCapture = (event: MouseEvent<HTMLDivElement>) => { if (Date.now() > clientFilterSwipeSuppressClickUntil.current)
+    const handleClientSwipeClickCapture = (event: MouseEvent<HTMLDivElement>) => { if (Date.now() > clientFilterSwipeSuppressClickUntil.current && Date.now() > clientCardOpenSuppressUntil.current)
         return; event.preventDefault(); event.stopPropagation(); };
     const selectedClientHistory = useMemo(() => { if (!activeClient)
         return []; const normalizedPhone = activeClient.phone.replace(/\D/g, ""); return props.appointments.filter((appointment) => { const appointmentPhone = appointment.phone.replace(/\D/g, ""); return normalizedPhone ? appointmentPhone === normalizedPhone : appointment.client === activeClient.name; }).sort((left, right) => `${right.date} ${right.time}`.localeCompare(`${left.date} ${left.time}`)).map((appointment) => ({ appointment, serviceTitle: getAppointmentServiceTitle(appointment, props.services), price: getAppointmentPrice(appointment, props.services), duration: getAppointmentDuration(appointment, props.services), noShow: isNoShowAppointment(appointment), })); }, [activeClient, props.appointments, props.services]);
@@ -2031,7 +2429,7 @@ function ClientsSection(props: {
         tags.push("Telegram"); return tags; };
     useEffect(() => { document.body.classList.toggle("client-bottom-sheet-lock", clientFormPanelOpen); return () => { document.body.classList.remove("client-bottom-sheet-lock"); }; }, [clientFormPanelOpen]);
     useEffect(() => { document.body.classList.toggle("client-profile-lock", Boolean(activeClient)); return () => { document.body.classList.remove("client-profile-lock"); }; }, [activeClient]);
-    const closeClientFormPanel = () => { if (isClientEditing) {
+    const closeClientFormPanel = () => { clientCardOpenSuppressUntil.current = Date.now() + 700; if (isClientEditing) {
         props.cancelClientEdit();
         return;
     } props.setClientFormOpen(false); props.setClientForm(emptyClient); };

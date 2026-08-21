@@ -17,6 +17,18 @@ const timeToMinutes = (value: string) => {
   const [hours, minutes] = value.split(":").map(Number);
   return hours * 60 + minutes;
 };
+const intervalsOverlap = (startA: number, endA: number, startB: number, endB: number) =>
+  startA < endB && startB < endA;
+const assertBreaksDoNotOverlap = (breaks: Array<{ start: string; end: string }>) => {
+  const sortedBreaks = [...breaks].sort((left, right) => timeToMinutes(left.start) - timeToMinutes(right.start));
+  for (let index = 1; index < sortedBreaks.length; index += 1) {
+    const previous = sortedBreaks[index - 1];
+    const current = sortedBreaks[index];
+    if (intervalsOverlap(timeToMinutes(previous.start), timeToMinutes(previous.end), timeToMinutes(current.start), timeToMinutes(current.end))) {
+      throw new Error("Перерывы не должны пересекаться");
+    }
+  }
+};
 const sanitizeMinutes = (value: unknown, fallback: number, allowed: number[]) => {
   const next = Number(value);
   return allowed.includes(next) ? next : fallback;
@@ -35,6 +47,7 @@ const sanitizeWeeklySchedule = (schedule: Record<string, unknown>) =>
             }))
             .filter((item) => timeToMinutes(item.start) < timeToMinutes(item.end))
         : [];
+      assertBreaksDoNotOverlap(breaks);
 
       return [
         key,
@@ -117,6 +130,9 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Schedule PATCH error:", error);
+    if (error instanceof Error && error.message === "Перерывы не должны пересекаться") {
+      return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+    }
     return NextResponse.json({ success: false, error: "Ошибка сохранения графика." }, { status: 500 });
   }
 }

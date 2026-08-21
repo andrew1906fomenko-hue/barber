@@ -27,6 +27,7 @@ type StoredIndividualSchedulePlan = {
 type StoredWeeklySchedule = Record<string, DaySchedule> & {
   __scheduleMode?: "weekdays" | "cycle";
   __individualPlan?: StoredIndividualSchedulePlan;
+  __dateOverrides?: Record<string, DaySchedule>;
 };
 
 type PublicService = {
@@ -241,6 +242,15 @@ const getCycleEnabled = (date: Date, plan?: StoredIndividualSchedulePlan) => {
 const getScheduleForDate = (date: Date, masterProfile?: PublicMaster | null) => {
   const weeklySchedule = masterProfile?.weeklySchedule;
   const base = weeklySchedule?.[String(date.getDay())];
+  const override = weeklySchedule?.__dateOverrides?.[formatDateKey(date)];
+  if (override) {
+    return {
+      ...(base || {}),
+      ...override,
+      start: override.start || base?.start || masterProfile?.workStart || "09:00",
+      end: override.end || base?.end || masterProfile?.workEnd || "20:00",
+    };
+  }
   if (weeklySchedule?.__scheduleMode !== "cycle") return base;
   const enabled = getCycleEnabled(date, weeklySchedule.__individualPlan);
   return {

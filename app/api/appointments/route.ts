@@ -19,6 +19,32 @@ type AppointmentRow = {
   reschedule_token?: string;
 };
 
+type BreakPeriod = {
+  start?: string;
+  end?: string;
+};
+
+type DaySchedule = {
+  enabled?: boolean;
+  breakEnabled?: boolean;
+  breakStart?: string;
+  breakEnd?: string;
+  breaks?: BreakPeriod[];
+};
+
+type StoredIndividualSchedulePlan = {
+  startDate?: string;
+  cyclePreset?: "all" | "weekdays" | "odd" | "even" | "custom";
+  customWorkDays?: number;
+  customOffDays?: number;
+};
+
+type WeeklySchedule = Record<string, DaySchedule | StoredIndividualSchedulePlan | string | undefined> & {
+  __scheduleMode?: string;
+  __individualPlan?: StoredIndividualSchedulePlan;
+  __dateOverrides?: Record<string, DaySchedule>;
+};
+
 const useLocalDb = process.env.USE_LOCAL_DB === "1" || !process.env.DATABASE_URL;
 const blockedTimeError = "\u0412\u044b\u0431\u0440\u0430\u043d\u043d\u043e\u0435 \u0432\u0440\u0435\u043c\u044f \u0437\u0430\u0431\u043b\u043e\u043a\u0438\u0440\u043e\u0432\u0430\u043d\u043e \u0432 \u0433\u0440\u0430\u0444\u0438\u043a\u0435.";
 
@@ -29,6 +55,40 @@ const timeToMinutes = (value: string) => {
 
 const intervalsOverlap = (startA: number, endA: number, startB: number, endB: number) =>
   startA < endB && startB < endA;
+
+const parseDateKey = (date: string) => {
+  const [year, month, day] = date.split("-").map(Number);
+  return new Date(year, (month || 1) - 1, day || 1);
+};
+
+const getCycleEnabled = (date: Date, plan?: StoredIndividualSchedulePlan) => {
+  if (!plan) return true;
+  if (plan.cyclePreset === "all") return true;
+  if (plan.cyclePreset === "weekdays") return date.getDay() > 0 && date.getDay() < 6;
+  if (plan.cyclePreset === "odd") return date.getDate() % 2 === 1;
+  if (plan.cyclePreset === "even") return date.getDate() % 2 === 0;
+  const workDays = Math.max(0, Number(plan.customWorkDays) || 0);
+  const offDays = Math.max(0, Number(plan.customOffDays) || 0);
+  const cycleLength = Math.max(1, workDays + offDays);
+  const start = parseDateKey(plan.startDate || "");
+  const diffDays = Math.floor((date.getTime() - start.getTime()) / 86400000);
+  const cycleIndex = ((diffDays % cycleLength) + cycleLength) % cycleLength;
+  return workDays > 0 && cycleIndex < workDays;
+};
+
+const getScheduleBreaks = (schedule?: DaySchedule) => {
+  if (!schedule) return [];
+  if (Array.isArray(schedule.breaks)) {
+    return schedule.breaks
+      .map((item) => ({
+        start: item.start || schedule.breakStart || "13:00",
+        end: item.end || schedule.breakEnd || "14:00",
+      }))
+      .filter((item) => timeToMinutes(item.start) < timeToMinutes(item.end));
+  }
+  const fallbackBreak = { start: schedule.breakStart || "13:00", end: schedule.breakEnd || "14:00" };
+  return schedule.breakEnabled && timeToMinutes(fallbackBreak.start) < timeToMinutes(fallbackBreak.end) ? [fallbackBreak] : [];
+};
 
 const mapStatus = (status?: string) => {
   if (status === "confirmed") return "\u041f\u043e\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0435\u043d\u0430";
@@ -84,6 +144,28 @@ async function isBlockedBySchedule(masterId: string, date: string, start: string
     (item) =>
       item.date === date &&
       intervalsOverlap(startMinutes, endMinutes, timeToMinutes(item.start_time), timeToMinutes(item.end_time)),
+  );
+}
+
+async function isBlockedByWeeklyBreak(masterId: string, date: string, start: string, end: string) {
+  const result = await pool.query<{ weekly_schedule: WeeklySchedule | null }>(
+    "SELECT weekly_schedule FROM masters WHERE id = $1",
+    [masterId],
+  );
+  const weeklySchedule = result.rows[0]?.weekly_schedule;
+  if (!weeklySchedule || !date || !start || !end) return false;
+
+  const dateObject = parseDateKey(date);
+  const baseSchedule = weeklySchedule[String(dateObject.getDay())] as DaySchedule | undefined;
+  const dateOverride = weeklySchedule.__dateOverrides?.[date];
+  const daySchedule = { ...(baseSchedule || {}), ...(dateOverride || {}) };
+  const enabled = dateOverride?.enabled ?? (weeklySchedule.__scheduleMode === "cycle" ? getCycleEnabled(dateObject, weeklySchedule.__individualPlan) : true);
+  if (!enabled) return false;
+
+  const startMinutes = timeToMinutes(start);
+  const endMinutes = timeToMinutes(end);
+  return getScheduleBreaks(daySchedule).some((item) =>
+    intervalsOverlap(startMinutes, endMinutes, timeToMinutes(item.start), timeToMinutes(item.end)),
   );
 }
 
@@ -203,6 +285,9 @@ export async function POST(request: Request) {
     if (await isBlockedBySchedule(masterId, date, start, end)) {
       return NextResponse.json({ success: false, error: blockedTimeError }, { status: 409 });
     }
+    if (await isBlockedByWeeklyBreak(masterId, date, start, end)) {
+      return NextResponse.json({ success: false, error: blockedTimeError }, { status: 409 });
+    }
 
     const result = await pool.query<AppointmentRow>(
       `
@@ -290,6 +375,9 @@ export async function PUT(request: Request) {
     if (!end) end = addMinutes(start, 60);
 
     if (await isBlockedBySchedule(targetMasterId, body.date || "", start, end)) {
+      return NextResponse.json({ success: false, error: blockedTimeError }, { status: 409 });
+    }
+    if (await isBlockedByWeeklyBreak(targetMasterId, body.date || "", start, end)) {
       return NextResponse.json({ success: false, error: blockedTimeError }, { status: 409 });
     }
 
