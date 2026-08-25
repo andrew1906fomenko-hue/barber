@@ -2695,6 +2695,27 @@
       "cancel_token": "f0607c1d-eac6-4a0d-9d11-a350dfa73cb0",
       "reschedule_token": "2c624cea-c17c-4809-a579-f03678ba5777",
       "created_at": "2026-08-20T12:25:36.624Z"
+    },
+    {
+      "id": "ffd8e62a-c05d-4587-8849-c9c8433a38e0",
+      "master_id": "53bc4d87-921c-49a6-854c-68a79886d7f1",
+      "service_id": "5f50c359-da55-4470-97b2-f9eaba51e0bc",
+      "service_ids": [
+        "5f50c359-da55-4470-97b2-f9eaba51e0bc",
+        "03937339-c4e9-40f5-af20-30a28872d6cd"
+      ],
+      "date": "2026-08-25",
+      "start_time": "23:35",
+      "end_time": "01:35",
+      "client_name": "Андрей",
+      "client_phone": "+79188975835",
+      "client_email": "",
+      "client_telegram": "",
+      "status": "active",
+      "notes": "",
+      "cancel_token": "a2d76826-9d2e-42bd-ab17-85f5e56d8f02",
+      "reschedule_token": "c49d948a-32e1-4cd8-addb-49a7a7f5d79e",
+      "created_at": "2026-08-25T18:27:13.886Z"
     }
   ],
   "clients": [
@@ -2962,7 +2983,7 @@
       "telegram_username": "Fomenko_Andrew",
       "telegram_connected_at": "2026-06-17T19:12:48.284Z",
       "created_at": "2026-06-17T19:12:27.165Z",
-      "updated_at": "2026-08-25T14:23:26.299Z"
+      "updated_at": "2026-08-25T18:27:13.896Z"
     },
     {
       "id": "7d6cb24f-56c0-4c3f-b0db-660f1597f6b2",
