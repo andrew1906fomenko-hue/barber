@@ -2695,28 +2695,6 @@
       "cancel_token": "f0607c1d-eac6-4a0d-9d11-a350dfa73cb0",
       "reschedule_token": "2c624cea-c17c-4809-a579-f03678ba5777",
       "created_at": "2026-08-20T12:25:36.624Z"
-    },
-    {
-      "id": "4e570eb1-9ca1-4146-9785-d71bfa3f9998",
-      "master_id": "53bc4d87-921c-49a6-854c-68a79886d7f1",
-      "service_id": "8488f9c7-5e41-4f7c-88a5-b3c68c77e18c",
-      "service_ids": [
-        "8488f9c7-5e41-4f7c-88a5-b3c68c77e18c",
-        "5f50c359-da55-4470-97b2-f9eaba51e0bc",
-        "03937339-c4e9-40f5-af20-30a28872d6cd"
-      ],
-      "date": "2026-08-25",
-      "start_time": "19:30",
-      "end_time": "22:30",
-      "client_name": "Андрей",
-      "client_phone": "+79188975835",
-      "client_email": "",
-      "client_telegram": "",
-      "status": "active",
-      "notes": "",
-      "cancel_token": "b35c4768-ce29-45bd-b339-ffb3665b04cf",
-      "reschedule_token": "ee14b6a6-2ce8-489f-8c36-2691a7cac1dc",
-      "created_at": "2026-08-25T14:23:26.293Z"
     }
   ],
   "clients": [

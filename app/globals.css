@@ -31763,7 +31763,7 @@ body:not(.dark-theme) .master-workspace .finance-reference-chart-card .finance-c
     height: auto !important;
     min-height: 15.9rem !important;
     margin-right: 0 !important;
-    margin-left: 0 !important;
+    margin-left: -1rem !important;
     padding-top: 1.95rem !important;
     padding-bottom: .2rem !important;
   }
@@ -31841,6 +31841,33 @@ body:not(.dark-theme) .master-workspace .analytics-reference-chart-card .analyti
 .master-workspace .finance-reference-chart-card .finance-chart-column .insights-chart-bar[style*=": 0%"] {
   box-shadow: none !important;
   opacity: 0 !important;
+}
+
+body:not(.dark-theme) .master-workspace .finance-section-root .finance-reference-chart-card .finance-chart-frame {
+  position: relative !important;
+}
+
+body:not(.dark-theme) .master-workspace .finance-section-root .finance-reference-chart-card .finance-chart-frame::before {
+  display: none !important;
+  content: none !important;
+}
+
+body:not(.dark-theme) .master-workspace .finance-section-root .finance-reference-chart-card .finance-chart::before {
+  display: none !important;
+  content: none !important;
+}
+
+body:not(.dark-theme) .master-workspace .finance-section-root .finance-reference-chart-card .finance-chart {
+  position: relative !important;
+  z-index: 0 !important;
+  padding-right: 0 !important;
+  padding-left: 0 !important;
+  scroll-padding-right: 0 !important;
+  scroll-padding-left: 0 !important;
+}
+
+body:not(.dark-theme) .master-workspace .finance-section-root .finance-reference-chart-card .finance-chart-column {
+  z-index: 2 !important;
 }
 
 .master-workspace .finance-reference-chart-card .finance-chart-date {
