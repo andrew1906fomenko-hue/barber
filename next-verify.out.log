@@ -1,0 +1,11 @@
+
+> fastbook-saas@2.0.0 dev
+> next dev
+
+   ▲ Next.js 15.3.0
+   - Local:        http://localhost:3001
+   - Network:      http://172.19.0.1:3001
+   - Environments: .env
+
+ ✓ Starting...
+ ✓ Ready in 2s

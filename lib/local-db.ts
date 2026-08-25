@@ -401,6 +401,10 @@ const sharesUserEmail = (left: LocalDb, right: LocalDb) => {
 const backupTimestamp = () => now().replace(/\D/g, "").slice(0, 14);
 
 let safetyBackupCreated = false;
+let cachedDb: LocalDb | null = null;
+let lastSavedDb: LocalDb | null = null;
+let loadDbPromise: Promise<LocalDb> | null = null;
+let saveDbPromise: Promise<void> = Promise.resolve();
 
 async function loadBackupFiles() {
   try {
@@ -429,7 +433,9 @@ async function loadBestBackup(predicate: (backup: LocalDb) => boolean) {
   return backups[0]?.db || null;
 }
 
-async function loadDb() {
+const cloneDb = (db: LocalDb): LocalDb => normalizeDb(JSON.parse(JSON.stringify(db)) as Partial<LocalDb>);
+
+async function loadDbFromDisk() {
   try {
     const raw = await readFile(dbPath, "utf8");
     const db = normalizeDb(JSON.parse(raw) as Partial<LocalDb>);
@@ -447,12 +453,17 @@ async function loadDb() {
   }
 }
 
-async function readDbFromDisk() {
-  try {
-    return normalizeDb(JSON.parse(await readFile(dbPath, "utf8")) as Partial<LocalDb>);
-  } catch {
-    return null;
+async function loadDb() {
+  if (cachedDb) return cachedDb;
+  if (!loadDbPromise) {
+    loadDbPromise = loadDbFromDisk().then((db) => {
+      cachedDb = db;
+      lastSavedDb = cloneDb(db);
+      return db;
+    });
   }
+
+  return loadDbPromise;
 }
 
 async function createSafetyBackup(db: LocalDb) {
@@ -479,15 +490,22 @@ function assertSafeSave(previous: LocalDb | null, next: LocalDb) {
 
 async function saveDb(db: LocalDb) {
   const nextDb = normalizeDb(db);
-  const previousDb = await readDbFromDisk();
+  const previousDb = lastSavedDb;
 
-  if (previousDb) await createSafetyBackup(previousDb);
-  assertSafeSave(previousDb, nextDb);
+  saveDbPromise = saveDbPromise.catch(() => undefined).then(async () => {
+    if (previousDb) await createSafetyBackup(previousDb);
+    assertSafeSave(previousDb, nextDb);
 
-  await mkdir(dataDir, { recursive: true });
-  const tempPath = `${dbPath}.${process.pid}.${Date.now()}.tmp`;
-  await writeFile(tempPath, JSON.stringify(nextDb, null, 2), "utf8");
-  await rename(tempPath, dbPath);
+    await mkdir(dataDir, { recursive: true });
+    const tempPath = `${dbPath}.${process.pid}.${Date.now()}.tmp`;
+    await writeFile(tempPath, JSON.stringify(nextDb, null, 2), "utf8");
+    await rename(tempPath, dbPath);
+
+    cachedDb = nextDb;
+    lastSavedDb = cloneDb(nextDb);
+  });
+
+  await saveDbPromise;
 }
 
 const masterPublicRow = (db: LocalDb, master: Master) => {

@@ -1561,13 +1561,19 @@ function BookingShowcaseServices({
     setActiveIndex((current) => Math.min(current, Math.max(services.length - 1, 0)));
   }, [services.length]);
 
-  const toggleService = (serviceId: string) => {
-    if (suppressClickRef.current) return;
+  const toggleService = (serviceId: string, options?: { bypassClickSuppression?: boolean }) => {
+    if (suppressClickRef.current && !options?.bypassClickSuppression) return;
     setSelectedServiceIds((current) => {
       const exists = current.includes(serviceId);
       return exists ? current.filter((id) => id !== serviceId) : [...current, serviceId];
     });
     setSubmitted(false);
+  };
+
+  const selectServiceFromButton = (event: React.MouseEvent<HTMLButtonElement>, serviceId: string) => {
+    event.stopPropagation();
+    suppressClickRef.current = false;
+    toggleService(serviceId, { bypassClickSuppression: true });
   };
 
   const scrollWheelToIndex = (index: number, behavior: ScrollBehavior = "smooth") => {
@@ -1693,7 +1699,7 @@ function BookingShowcaseServices({
                     <span><Tag weight="regular" aria-hidden="true" />{formatServicePrice(service, masterProfile?.showPrice !== false)}</span>
                   </div>
                   {service.description && <p>{service.description}</p>}
-                  <button type="button" className="booking-service-feature-select" onClick={() => toggleService(service.id)}>
+                  <button type="button" className="booking-service-feature-select" onClick={(event) => selectServiceFromButton(event, service.id)}>
                     {selected ? "Выбрано" : "Выбрать"}
                   </button>
                 </div>
@@ -1863,7 +1869,7 @@ function BookingShowcaseServices({
             aria-hidden={!visible}
             style={{ "--booking-card-rank": rank, "--booking-card-position": position } as React.CSSProperties}
           >
-            <button type="button" onClick={() => toggleService(service.id)} className="booking-showcase-favorite" aria-label={active ? "Убрать услугу" : "Выбрать услугу"} tabIndex={visible ? 0 : -1}>
+            <button type="button" onClick={(event) => selectServiceFromButton(event, service.id)} className="booking-showcase-favorite" aria-label={active ? "Убрать услугу" : "Выбрать услугу"} tabIndex={visible ? 0 : -1}>
               {active ? <Check weight="bold" /> : variant === "spotlight" ? <Star weight="regular" /> : <Heart weight="fill" />}
             </button>
             <button type="button" onClick={() => handleCardVisualClick(service.id, position)} className="booking-showcase-image" aria-pressed={active} tabIndex={visible ? 0 : -1}>
@@ -1892,7 +1898,7 @@ function BookingShowcaseServices({
                 </>
               )}
               {service.description && <p className="booking-showcase-description">{service.description}</p>}
-              <button type="button" onClick={() => toggleService(service.id)} className="booking-showcase-select" tabIndex={visible ? 0 : -1}>
+              <button type="button" onClick={(event) => selectServiceFromButton(event, service.id)} className="booking-showcase-select" tabIndex={visible ? 0 : -1}>
                 {active ? "Выбрано" : "Выбрать"}
               </button>
             </div>
