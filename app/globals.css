@@ -23097,6 +23097,11 @@ body:not(.dark-theme) .master-workspace .settings-panel-back {
   color: #111111 !important;
 }
 
+body:not(.dark-theme) .master-workspace .settings-panel-screen .app-panel-header .settings-panel-back,
+.master-workspace .settings-panel-screen .app-panel-header .settings-panel-back {
+  margin-top: 0 !important;
+}
+
 body:not(.dark-theme) .master-workspace .settings-panel-back:hover {
   background: rgba(17, 17, 17, .055) !important;
 }
@@ -32150,4 +32155,431 @@ body:not(.dark-theme) .master-workspace .analytics-reference-metric em {
   line-height: 1.12 !important;
   text-overflow: ellipsis !important;
   white-space: nowrap !important;
+}
+
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-beauty-card {
+  position: relative !important;
+  overflow: visible !important;
+  border: 1px solid rgba(17, 17, 17, .085) !important;
+  border-radius: 12px !important;
+  background: #ffffff !important;
+  padding: .9rem !important;
+  box-shadow: 0 5px 14px rgba(17, 17, 17, .04) !important;
+}
+
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-beauty-card::before {
+  display: none !important;
+}
+
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-beauty-card > :not([hidden]) ~ :not([hidden]) {
+  margin-top: .62rem !important;
+}
+
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-beauty-card h2 {
+  color: #111111 !important;
+  -webkit-text-fill-color: #111111 !important;
+  font-size: .98rem !important;
+  font-weight: 700 !important;
+  font-variation-settings: "wght" 700 !important;
+  line-height: 1.18 !important;
+  letter-spacing: 0 !important;
+}
+
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-beauty-card h2 + p {
+  margin-top: .25rem !important;
+  color: var(--service-reference-muted) !important;
+  -webkit-text-fill-color: var(--service-reference-muted) !important;
+  font-size: .72rem !important;
+  font-weight: 400 !important;
+  line-height: 1.3 !important;
+}
+
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-profile-card .grid {
+  gap: .55rem .65rem !important;
+}
+
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-profile-card label.space-y-2 > :not([hidden]) ~ :not([hidden]) {
+  margin-top: .32rem !important;
+}
+
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-profile-card label > span:first-child,
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-profile-card .settings-toggle-row .text-settingsRowTitle {
+  color: #111111 !important;
+  -webkit-text-fill-color: #111111 !important;
+  font-size: .72rem !important;
+  font-weight: 600 !important;
+  font-variation-settings: "wght" 600 !important;
+  line-height: 1.15 !important;
+  letter-spacing: 0 !important;
+}
+
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-profile-card .settings-toggle-row .text-settingsRowTitle {
+  font-size: .84rem !important;
+  font-weight: 500 !important;
+  font-variation-settings: "wght" 500 !important;
+  line-height: 1.18 !important;
+}
+
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-profile-card input.settings-input,
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-profile-card .settings-slug-field,
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-profile-card .settings-slug-field input {
+  min-height: var(--service-field-height) !important;
+  height: var(--service-field-height) !important;
+  border: 1px solid var(--service-reference-line) !important;
+  border-radius: 7px !important;
+  background: rgba(255, 255, 255, .72) !important;
+  padding: 0 .65rem !important;
+  color: #111111 !important;
+  -webkit-text-fill-color: #111111 !important;
+  font-size: var(--text-input-size) !important;
+  font-weight: var(--text-input-weight) !important;
+  font-variation-settings: normal !important;
+  line-height: var(--text-input-line) !important;
+  letter-spacing: 0 !important;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, .02) inset !important;
+}
+
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-profile-card :is(input.settings-input, .settings-slug-field):focus,
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-profile-card .settings-slug-field:focus-within {
+  border-color: #111111 !important;
+  background: rgb(var(--color-surface)) !important;
+  box-shadow:
+    0 0 0 2px rgba(17, 17, 17, .22),
+    0 0 0 5px rgba(17, 17, 17, .08),
+    0 8px 18px rgba(17, 17, 17, .10),
+    0 1px 1px rgba(0, 0, 0, .02) inset !important;
+}
+
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-profile-card label > span.block.text-settingsRowDescription,
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-profile-card .settings-toggle-row .text-settingsRowDescription {
+  color: var(--service-reference-muted) !important;
+  -webkit-text-fill-color: var(--service-reference-muted) !important;
+  font-size: .68rem !important;
+  font-weight: 400 !important;
+  line-height: 1.25 !important;
+  letter-spacing: 0 !important;
+}
+
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-profile-card .settings-toggle-row {
+  min-height: 3rem !important;
+  border: 1px solid var(--service-reference-line) !important;
+  border-radius: 7px !important;
+  background: rgba(255, 255, 255, .72) !important;
+  padding: .5rem .65rem !important;
+}
+
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-profile-card .account-toggle-icon {
+  width: 1.35rem !important;
+  height: 1.35rem !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: #0f766e !important;
+  box-shadow: none !important;
+}
+
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-profile-card .account-toggle-icon svg {
+  width: 1rem !important;
+  height: 1rem !important;
+}
+
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-profile-card .account-toggle-copy {
+  display: block !important;
+  min-width: 0 !important;
+  flex: 1 1 auto !important;
+}
+
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-beauty-card button.bg-primary {
+  min-height: var(--service-field-height) !important;
+  border: 1px solid #111111 !important;
+  border-radius: 7px !important;
+  background: #ffffff !important;
+  color: #111111 !important;
+  -webkit-text-fill-color: #111111 !important;
+  font-size: .84rem !important;
+  font-weight: 700 !important;
+  line-height: 1.2 !important;
+  box-shadow: none !important;
+}
+
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-link-card > .grid {
+  gap: .65rem !important;
+}
+
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-link-card p.bg-primarySurface {
+  min-height: var(--service-field-height) !important;
+  border: 1px solid var(--service-reference-line) !important;
+  border-radius: 7px !important;
+  background: rgba(255, 255, 255, .72) !important;
+  padding: .42rem .65rem !important;
+  color: #0f766e !important;
+  -webkit-text-fill-color: #0f766e !important;
+  font-size: .72rem !important;
+  font-weight: 400 !important;
+  line-height: 1.2 !important;
+}
+
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-link-card .max-w-\[176px\] {
+  max-width: 11rem !important;
+  border: 1px solid var(--service-reference-line) !important;
+  border-radius: 7px !important;
+  background: #ffffff !important;
+  padding: .65rem !important;
+  box-shadow: none !important;
+}
+
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-link-card img {
+  border-radius: 0 !important;
+}
+
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-link-card a[download] {
+  display: block !important;
+  min-height: var(--service-field-height) !important;
+  border: 1px solid var(--service-reference-line) !important;
+  border-radius: 7px !important;
+  background: #ffffff !important;
+  padding: .55rem .65rem !important;
+  color: #111111 !important;
+  -webkit-text-fill-color: #111111 !important;
+  font-size: .84rem !important;
+  font-weight: 700 !important;
+  line-height: 1.2 !important;
+  box-shadow: none !important;
+}
+/* Keep account visibility toggles visually aligned with booking page settings rows. */
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-profile-card .settings-toggle-row,
+.master-workspace .settings-panel-screen .account-profile-card .settings-toggle-row {
+  min-height: auto !important;
+  gap: .75rem !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  padding: .25rem 0 !important;
+}
+
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-profile-card .settings-toggle-row:hover,
+.master-workspace .settings-panel-screen .account-profile-card .settings-toggle-row:hover {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-profile-card .account-toggle-icon,
+.master-workspace .settings-panel-screen .account-profile-card .account-toggle-icon {
+  width: 1.35rem !important;
+  height: 1.35rem !important;
+  min-width: 1.35rem !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-profile-card .account-toggle-icon svg,
+.master-workspace .settings-panel-screen .account-profile-card .account-toggle-icon svg {
+  width: 1.25rem !important;
+  height: 1.25rem !important;
+}
+
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-profile-card .settings-menu-icon-profile,
+.master-workspace .settings-panel-screen .account-profile-card .settings-menu-icon-profile {
+  color: #0f9f6e !important;
+}
+
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-profile-card .settings-menu-icon-address,
+.master-workspace .settings-panel-screen .account-profile-card .settings-menu-icon-address {
+  color: #0b8fc9 !important;
+}
+
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-profile-card .settings-menu-icon-profile svg,
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-profile-card .settings-menu-icon-profile svg *,
+.master-workspace .settings-panel-screen .account-profile-card .settings-menu-icon-profile svg,
+.master-workspace .settings-panel-screen .account-profile-card .settings-menu-icon-profile svg * {
+  color: #0f9f6e !important;
+  stroke: #0f9f6e !important;
+}
+
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-profile-card .settings-menu-icon-address svg,
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-profile-card .settings-menu-icon-address svg *,
+.master-workspace .settings-panel-screen .account-profile-card .settings-menu-icon-address svg,
+.master-workspace .settings-panel-screen .account-profile-card .settings-menu-icon-address svg * {
+  color: #0b8fc9 !important;
+  stroke: #0b8fc9 !important;
+}
+
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-profile-card .settings-toggle-row .text-settingsRowTitle,
+.master-workspace .settings-panel-screen .account-profile-card .settings-toggle-row .text-settingsRowTitle {
+  color: var(--textPrimary) !important;
+  -webkit-text-fill-color: var(--textPrimary) !important;
+  font-size: var(--text-settings-title-size) !important;
+  font-weight: var(--text-settings-title-weight) !important;
+  font-variation-settings: normal !important;
+  line-height: var(--text-settings-title-line) !important;
+  letter-spacing: 0 !important;
+}
+
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-profile-card .settings-toggle-row .text-settingsRowDescription,
+.master-workspace .settings-panel-screen .account-profile-card .settings-toggle-row .text-settingsRowDescription {
+  color: var(--textSecondary) !important;
+  -webkit-text-fill-color: var(--textSecondary) !important;
+  font-size: var(--text-settings-description-size) !important;
+  font-weight: var(--text-settings-description-weight) !important;
+  line-height: var(--text-settings-description-line) !important;
+  letter-spacing: 0 !important;
+}
+
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-profile-card .account-toggle-copy,
+.master-workspace .settings-panel-screen .account-profile-card .account-toggle-copy {
+  display: block !important;
+  min-width: 0 !important;
+  flex: 1 1 auto !important;
+}
+
+/* Account page follows the New Client sheet typography and field rhythm. */
+body:not(.dark-theme) .master-workspace .settings-panel-content:has(.account-profile-card),
+.master-workspace .settings-panel-content:has(.account-profile-card) {
+  gap: 0 !important;
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+}
+
+body:not(.dark-theme) .master-workspace .settings-panel-screen:has(.account-profile-card),
+body:not(.dark-theme) .master-workspace .whatsapp-mobile-content:has(.account-profile-card),
+.master-workspace .settings-panel-screen:has(.account-profile-card),
+.master-workspace .whatsapp-mobile-content:has(.account-profile-card) {
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  background-image: none !important;
+}
+
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-beauty-card,
+.master-workspace .settings-panel-screen .account-beauty-card {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  background-image: none !important;
+  padding: 16px !important;
+  box-shadow: none !important;
+}
+
+body:not(.dark-theme) .master-workspace .settings-panel-screen article.saas-card.account-beauty-card,
+.master-workspace .settings-panel-screen article.saas-card.account-beauty-card {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  background-image: none !important;
+  padding: 16px !important;
+  box-shadow: none !important;
+}
+
+body:not(.dark-theme) .master-workspace .settings-panel-screen article.saas-card.account-profile-card,
+.master-workspace .settings-panel-screen article.saas-card.account-profile-card {
+  padding-top: 8px !important;
+}
+
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-beauty-card > :not([hidden]) ~ :not([hidden]),
+.master-workspace .settings-panel-screen .account-beauty-card > :not([hidden]) ~ :not([hidden]) {
+  margin-top: .58rem !important;
+}
+
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-beauty-card h2,
+.master-workspace .settings-panel-screen .account-beauty-card h2 {
+  color: #111111 !important;
+  -webkit-text-fill-color: #111111 !important;
+  font-size: 1.48rem !important;
+  font-weight: 400 !important;
+  font-variation-settings: "wght" 400 !important;
+  line-height: 1.16 !important;
+  letter-spacing: 0 !important;
+}
+
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-beauty-card h2 + p,
+.master-workspace .settings-panel-screen .account-beauty-card h2 + p {
+  margin-top: .25rem !important;
+  color: #6f6f73 !important;
+  -webkit-text-fill-color: #6f6f73 !important;
+  font-size: .78rem !important;
+  font-weight: 400 !important;
+  line-height: 18px !important;
+  letter-spacing: 0 !important;
+}
+
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-profile-card .grid,
+.master-workspace .settings-panel-screen .account-profile-card .grid,
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-link-card > .grid,
+.master-workspace .settings-panel-screen .account-link-card > .grid {
+  gap: .58rem !important;
+}
+
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-profile-card label.space-y-2 > :not([hidden]) ~ :not([hidden]),
+.master-workspace .settings-panel-screen .account-profile-card label.space-y-2 > :not([hidden]) ~ :not([hidden]) {
+  margin-top: .32rem !important;
+}
+
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-profile-card label > span:first-child,
+.master-workspace .settings-panel-screen .account-profile-card label > span:first-child {
+  color: #111111 !important;
+  -webkit-text-fill-color: #111111 !important;
+  font-size: .72rem !important;
+  font-weight: 600 !important;
+  line-height: 1.15 !important;
+  letter-spacing: 0 !important;
+}
+
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-profile-card input.settings-input,
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-profile-card .settings-slug-field,
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-profile-card .settings-slug-field input,
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-link-card p.bg-primarySurface,
+.master-workspace .settings-panel-screen .account-profile-card input.settings-input,
+.master-workspace .settings-panel-screen .account-profile-card .settings-slug-field,
+.master-workspace .settings-panel-screen .account-profile-card .settings-slug-field input,
+.master-workspace .settings-panel-screen .account-link-card p.bg-primarySurface {
+  min-height: 2.75rem !important;
+  height: 2.75rem !important;
+  border: 1px solid var(--client-reference-line) !important;
+  border-radius: .75rem !important;
+  background: rgba(255, 255, 255, .72) !important;
+  padding: .5rem .875rem !important;
+  color: #111111 !important;
+  -webkit-text-fill-color: #111111 !important;
+  font-size: var(--text-input-size) !important;
+  font-weight: var(--text-input-weight) !important;
+  line-height: var(--text-input-line) !important;
+  letter-spacing: 0 !important;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, .02) inset !important;
+}
+
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-profile-card .settings-slug-field input,
+.master-workspace .settings-panel-screen .account-profile-card .settings-slug-field input {
+  min-height: 0 !important;
+  height: 100% !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  padding: 0 0 0 .25rem !important;
+  box-shadow: none !important;
+}
+
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-profile-card input.settings-input::placeholder,
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-profile-card .settings-slug-field input::placeholder,
+.master-workspace .settings-panel-screen .account-profile-card input.settings-input::placeholder,
+.master-workspace .settings-panel-screen .account-profile-card .settings-slug-field input::placeholder {
+  color: #a0a7b3 !important;
+  -webkit-text-fill-color: #a0a7b3 !important;
+}
+
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-beauty-card button.bg-primary,
+body:not(.dark-theme) .master-workspace .settings-panel-screen .account-link-card a[download],
+.master-workspace .settings-panel-screen .account-beauty-card button.bg-primary,
+.master-workspace .settings-panel-screen .account-link-card a[download] {
+  min-height: 3.05rem !important;
+  border-radius: 8px !important;
+  font-size: .93rem !important;
+  font-weight: 700 !important;
+  line-height: 1.2 !important;
 }
