@@ -16172,12 +16172,20 @@ body:not(.dark-theme) .master-workspace .services-tab .services-list > .service-
 /* Master home: appointment cards styled like the compact booking reference. */
 .master-workspace .home-dashboard .calendar-list-transition > .appointment-card-reference.pressable-surface.saas-card,
 .master-workspace .whatsapp-mobile-content .home-dashboard .calendar-list-transition > .appointment-card-reference.pressable-surface.saas-card {
+  --appointment-card-radius: 10px;
   overflow: hidden !important;
   border: 1px solid rgba(17, 27, 33, .08) !important;
   border-left: 3px solid var(--appointment-service-color, #075e54) !important;
-  border-radius: 10px !important;
+  border-radius: var(--appointment-card-radius) !important;
   background: #ffffff !important;
   box-shadow: 0 10px 30px rgba(15, 23, 42, .06) !important;
+}
+
+.master-workspace .home-dashboard .calendar-list-transition > .appointment-card-reference.pressable-surface.saas-card:first-child,
+.master-workspace .home-dashboard .calendar-list-transition > .appointment-card-reference.pressable-surface.saas-card:last-child,
+.master-workspace .whatsapp-mobile-content .home-dashboard .calendar-list-transition > .appointment-card-reference.pressable-surface.saas-card:first-child,
+.master-workspace .whatsapp-mobile-content .home-dashboard .calendar-list-transition > .appointment-card-reference.pressable-surface.saas-card:last-child {
+  border-radius: var(--appointment-card-radius) !important;
 }
 
 .master-workspace .home-dashboard .calendar-list-transition > .appointment-card-reference::after,
@@ -17300,6 +17308,7 @@ body.dark-theme .master-workspace .client-reference-history {
   display: grid;
   min-height: 8.05rem;
   border-left: 0 !important;
+  border-radius: inherit;
   grid-template-columns: 6.25rem minmax(0, 1fr) 2rem;
   grid-template-areas: "time details actions";
   overflow: hidden;
