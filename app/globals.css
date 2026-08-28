@@ -1306,6 +1306,18 @@ h3,
 }
 
 @media (max-width: 680px) {
+  .booksy-date-calendar.is-expanded .booksy-date-calendar-panel {
+    touch-action: pan-y;
+  }
+
+  .booksy-date-calendar.is-expanded .booksy-date-calendar-header {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .booksy-date-calendar.is-expanded .booksy-date-calendar-nav {
+    display: none;
+  }
+
   .airbnb-booking-shell .booksy-date-wheel {
     width: calc(100% + 2.1rem);
     margin-inline: -1.05rem;
@@ -5109,6 +5121,107 @@ body.dark-theme
 
 .home-calendar-shell {
   margin-top: 0;
+  max-height: 9.75rem;
+  transition:
+    max-height 720ms cubic-bezier(.25, .82, .25, 1),
+    padding-top 560ms ease,
+    padding-bottom 560ms ease;
+  transition-delay: 0ms;
+  will-change: max-height;
+}
+
+.home-calendar-shell:has(.calendar-header-action[aria-expanded="true"]) {
+  max-height: 27rem;
+}
+
+.home-calendar-shell .calendar-month-controls {
+  transform: translateY(-3px);
+  transition:
+    grid-template-rows 680ms cubic-bezier(.25, .82, .25, 1),
+    opacity 520ms ease,
+    margin-top 560ms ease,
+    transform 620ms cubic-bezier(.25, .82, .25, 1);
+  transition-delay: 0ms;
+}
+
+.home-calendar-shell:has(.calendar-header-action[aria-expanded="true"]) .calendar-month-controls {
+  transform: translateY(0);
+}
+
+.home-calendar-shell .calendar-view-stage {
+  display: grid;
+  overflow: hidden;
+}
+
+.home-calendar-shell .calendar-view-panel {
+  grid-area: 1 / 1;
+  pointer-events: none;
+  transition:
+    opacity 520ms ease,
+    transform 680ms cubic-bezier(.25, .82, .25, 1);
+}
+
+.home-calendar-shell .calendar-week-track {
+  transition:
+    opacity 520ms ease,
+    transform 680ms cubic-bezier(.25, .82, .25, 1);
+  transition-delay: 0ms;
+}
+
+.home-calendar-shell .calendar-view-week {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.home-calendar-shell .calendar-view-month {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+.home-calendar-shell:has(.calendar-header-action[aria-expanded="true"]) .calendar-view-week {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(8px);
+}
+
+.home-calendar-shell:has(.calendar-header-action[aria-expanded="true"]) .calendar-view-month {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+  transition-delay: 0ms;
+}
+
+.home-calendar-shell .calendar-header-action[aria-expanded] {
+  transition:
+    background-color 320ms ease,
+    color 320ms ease,
+    transform 560ms cubic-bezier(.25, .82, .25, 1);
+  transition-delay: 0ms;
+}
+
+.home-calendar-shell .calendar-header-action[aria-expanded]:active {
+  transform: scale(.97);
+}
+
+@media (min-width: 768px) {
+  .home-calendar-shell:has(.calendar-header-action[aria-expanded="true"]) {
+    max-height: 58rem;
+  }
+}
+
+@media (max-width: 767px) {
+  .home-calendar-shell {
+    max-height: 7.5rem;
+  }
+
+  .home-calendar-shell:has(.calendar-header-action[aria-expanded="true"]) .calendar-month-controls-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .home-calendar-shell:has(.calendar-header-action[aria-expanded="true"]) .calendar-month-controls-row > button {
+    display: none !important;
+  }
 }
 
 .mobile-nav-item .mobile-nav-icon {
@@ -5147,6 +5260,39 @@ body.dark-theme
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes calendar-expand-soft-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes calendar-collapse-soft-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes calendar-month-collapse-soft-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: .18;
+    transform: translateY(-8px);
   }
 }
 
@@ -6486,6 +6632,10 @@ body.dark-theme .home-overview-time {
     padding: 6px !important;
     border-radius: 0 !important;
     color: #0f172a;
+    background: #ffffff !important;
+  }
+
+  .whatsapp-mobile-content .home-dashboard .home-calendar-shell .calendar-month-label {
     background: #ffffff !important;
   }
 
@@ -17482,7 +17632,10 @@ body.dark-theme .master-workspace .client-reference-history {
 
 .master-workspace .agenda-header,
 .master-workspace .whatsapp-mobile-content .agenda-header {
+  align-items: center !important;
   gap: .15rem !important;
+  transform: translateY(-8px);
+  margin-bottom: -8px;
 }
 
 .master-workspace .agenda-toggle-strip,
@@ -17514,7 +17667,7 @@ body.dark-theme .master-workspace .client-reference-history {
   min-height: 0;
   margin-right: -.62rem;
   flex: 0 0 auto;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
   border: 0;
   border-radius: .45rem;
@@ -17611,12 +17764,12 @@ body.dark-theme .master-workspace .client-reference-history {
   flex: 0 0 auto;
   color: #536471;
   transition: transform .18s ease;
-  transform: translateY(-8px);
+  transform: none;
 }
 
 .master-workspace .agenda-collapse-button.is-expanded .agenda-toggle-strip-icon,
 .master-workspace .whatsapp-mobile-content .agenda-collapse-button.is-expanded .agenda-toggle-strip-icon {
-  transform: translateY(-8px) rotate(180deg);
+  transform: rotate(180deg);
 }
 
 .master-workspace .master-booking-duration-price,
@@ -17883,10 +18036,16 @@ body:not(.dark-theme) .master-workspace .appointment-fab:active {
 
 .master-workspace .next-appointment-strip,
 .master-workspace .whatsapp-mobile-content .next-appointment-strip {
+  display: none;
   min-height: 2.2rem;
   border-top: 1px solid rgba(17, 27, 33, .06);
   border-bottom: 1px solid rgba(17, 27, 33, .06);
   background: #ffffff;
+}
+
+.master-workspace .next-appointment-strip + .calendar-list-transition,
+.master-workspace .whatsapp-mobile-content .next-appointment-strip + .calendar-list-transition {
+  margin-top: 0;
 }
 
 .master-workspace .next-appointment-marquee,

@@ -41,7 +41,10 @@ export async function GET(request: Request) {
       [masterId],
     );
 
-    return NextResponse.json({ success: true, blockedTimes: result.rows.map(mapBlockedTime) });
+    return NextResponse.json(
+      { success: true, blockedTimes: result.rows.map(mapBlockedTime) },
+      { headers: { "Cache-Control": "no-store" } },
+    );
   } catch (error) {
     console.error("Blocked times GET error:", error);
     return NextResponse.json({ success: false, error: "Ошибка загрузки блокировок." }, { status: 500 });

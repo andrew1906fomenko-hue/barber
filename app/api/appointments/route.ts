@@ -200,7 +200,10 @@ export async function GET(request: Request) {
       [masterId],
     );
 
-    return NextResponse.json({ success: true, appointments: result.rows.map(mapAppointment) });
+    return NextResponse.json(
+      { success: true, appointments: result.rows.map(mapAppointment) },
+      { headers: { "Cache-Control": "no-store" } },
+    );
   } catch (error) {
     console.error("Appointments GET error:", error);
     return NextResponse.json({ success: false, error: "Ошибка загрузки записей." }, { status: 500 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ArrowLeft, CalendarBlank, CaretDown, CaretLeft, CaretRight, Check, CheckCircle, Clock, Heart, Info, MapPin, Star, Tag, X } from "@phosphor-icons/react";
 
@@ -1161,6 +1161,8 @@ function BookingDateCalendar({
   value: string;
 }) {
   const [collapsed, setCollapsed] = useState(false);
+  const swipeRef = useRef<{ startX: number; startY: number; pointerId: number } | null>(null);
+  const suppressSwipeClickRef = useRef(false);
   const availableKeys = useMemo(() => new Set(dates.map(formatDateKey)), [dates]);
   const availableMonthKeys = useMemo(() => Array.from(new Set(dates.map(getMonthKey))).sort(), [dates]);
   const selectedMonthKey = value && availableKeys.has(value) ? getMonthKey(parseDateKeyLocal(value)) : "";
@@ -1195,12 +1197,30 @@ function BookingDateCalendar({
     return date;
   });
 
+  const calendarCollapsed = collapsed && Boolean(selectedDateLabel);
+  const isMobileCalendarSwipe = () => typeof window !== "undefined" && window.matchMedia("(max-width: 680px)").matches;
   const changeMonth = (direction: -1 | 1) => {
     const nextKey = availableMonthKeys[visibleMonthIndex + direction];
     if (nextKey) setVisibleMonthKey(nextKey);
   };
-  const calendarCollapsed = collapsed && Boolean(selectedDateLabel);
-
+  const handleSwipeStart = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (calendarCollapsed || !isMobileCalendarSwipe()) return;
+    swipeRef.current = { startX: event.clientX, startY: event.clientY, pointerId: event.pointerId };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+  const handleSwipeEnd = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const swipe = swipeRef.current;
+    swipeRef.current = null;
+    if (!swipe || swipe.pointerId !== event.pointerId || calendarCollapsed || !isMobileCalendarSwipe()) return;
+    const deltaX = event.clientX - swipe.startX;
+    const deltaY = event.clientY - swipe.startY;
+    if (Math.abs(deltaX) < 42 || Math.abs(deltaX) < Math.abs(deltaY) * 1.35) return;
+    suppressSwipeClickRef.current = true;
+    changeMonth(deltaX < 0 ? 1 : -1);
+    window.setTimeout(() => {
+      suppressSwipeClickRef.current = false;
+    }, 0);
+  };
   return (
     <div className={`booksy-date-calendar ${calendarCollapsed ? "is-collapsed" : "is-expanded"}`} style={{ "--date-calendar-accent": accentColor } as React.CSSProperties}>
       <div className="booksy-date-calendar-summary-wrap" aria-hidden={!calendarCollapsed}>
@@ -1218,10 +1238,27 @@ function BookingDateCalendar({
           <CaretDown weight="bold" aria-hidden="true" />
         </button>
       </div>
-      <div className="booksy-date-calendar-panel" aria-hidden={calendarCollapsed}>
+      <div
+        className="booksy-date-calendar-panel"
+        aria-hidden={calendarCollapsed}
+        onPointerDown={handleSwipeStart}
+        onPointerUp={handleSwipeEnd}
+        onPointerCancel={() => {
+          swipeRef.current = null;
+        }}
+        onPointerLeave={() => {
+          swipeRef.current = null;
+        }}
+        onClickCapture={(event) => {
+          if (!suppressSwipeClickRef.current) return;
+          event.preventDefault();
+          event.stopPropagation();
+        }}
+      >
       <div className="booksy-date-calendar-header">
         <button
           type="button"
+          className="booksy-date-calendar-nav"
           onClick={() => changeMonth(-1)}
           disabled={calendarCollapsed || visibleMonthIndex <= 0}
           aria-label="Предыдущий месяц"
@@ -1234,6 +1271,7 @@ function BookingDateCalendar({
         </div>
         <button
           type="button"
+          className="booksy-date-calendar-nav"
           onClick={() => changeMonth(1)}
           disabled={calendarCollapsed || visibleMonthIndex === -1 || visibleMonthIndex >= availableMonthKeys.length - 1}
           aria-label="Следующий месяц"

@@ -2716,6 +2716,46 @@
       "cancel_token": "a2d76826-9d2e-42bd-ab17-85f5e56d8f02",
       "reschedule_token": "c49d948a-32e1-4cd8-addb-49a7a7f5d79e",
       "created_at": "2026-08-25T18:27:13.886Z"
+    },
+    {
+      "id": "b03bca8d-1774-4893-a4dc-5277686b116b",
+      "master_id": "53bc4d87-921c-49a6-854c-68a79886d7f1",
+      "service_id": "5f50c359-da55-4470-97b2-f9eaba51e0bc",
+      "service_ids": [
+        "5f50c359-da55-4470-97b2-f9eaba51e0bc"
+      ],
+      "date": "2026-08-29",
+      "start_time": "00:10",
+      "end_time": "01:10",
+      "client_name": "Андрей",
+      "client_phone": "+79188975835",
+      "client_email": "",
+      "client_telegram": "",
+      "status": "active",
+      "notes": "",
+      "cancel_token": "fc6f5edc-2da5-44d3-87c2-0bdc3631bf8a",
+      "reschedule_token": "4250b2e5-ac7c-4f51-b94b-5cc50cd8a86f",
+      "created_at": "2026-08-28T19:00:08.735Z"
+    },
+    {
+      "id": "86e6cf70-9584-4e4f-b7b0-7ab2bb252c0f",
+      "master_id": "53bc4d87-921c-49a6-854c-68a79886d7f1",
+      "service_id": "55253cbd-c008-418f-905a-9cb616088b17",
+      "service_ids": [
+        "55253cbd-c008-418f-905a-9cb616088b17"
+      ],
+      "date": "2026-08-01",
+      "start_time": "00:10",
+      "end_time": "01:10",
+      "client_name": "Андрей",
+      "client_phone": "+79188975835",
+      "client_email": "",
+      "client_telegram": "",
+      "status": "active",
+      "notes": "",
+      "cancel_token": "e48a8f20-4f05-40ae-bbba-b30d9ea4e0f0",
+      "reschedule_token": "4b0f45b2-efb7-41e1-afa5-2da6ce8e38a4",
+      "created_at": "2026-08-28T19:01:01.731Z"
     }
   ],
   "clients": [
@@ -2983,7 +3023,7 @@
       "telegram_username": "Fomenko_Andrew",
       "telegram_connected_at": "2026-06-17T19:12:48.284Z",
       "created_at": "2026-06-17T19:12:27.165Z",
-      "updated_at": "2026-08-25T18:27:13.896Z"
+      "updated_at": "2026-08-28T19:01:01.735Z"
     },
     {
       "id": "7d6cb24f-56c0-4c3f-b0db-660f1597f6b2",
