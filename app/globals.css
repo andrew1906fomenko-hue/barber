@@ -4976,6 +4976,13 @@ body.dark-theme
   width: 100%;
   overflow: hidden;
   touch-action: pan-x pan-y;
+  overscroll-behavior-x: contain;
+}
+
+.calendar-track-follow {
+  --calendar-track-offset: 0px;
+  --calendar-track-transition: transform .22s ease;
+  touch-action: pan-y;
 }
 
 .calendar-week-page {
@@ -4991,6 +4998,8 @@ body.dark-theme
 .calendar-week-roller {
   display: flex;
   width: 100%;
+  transform: translate3d(calc(-100% + var(--calendar-track-offset, 0px)), 0, 0);
+  transition: var(--calendar-track-transition, transform .22s ease);
   will-change: transform;
 }
 
