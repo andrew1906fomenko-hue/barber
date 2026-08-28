@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
-import { ensureTelegramRuntimeStarted, sendTestMessageForAppointment } from "../../../../lib/telegram-runtime";
+import { sendTestMessageForAppointment } from "../../../../lib/telegram-runtime";
 
 export async function POST(request: Request) {
   try {
-    ensureTelegramRuntimeStarted();
     const body = (await request.json()) as { appointmentId?: string; rescheduleToken?: string; clientPhone?: string };
     if (!body.appointmentId || (!body.rescheduleToken && !body.clientPhone)) {
       return NextResponse.json({ success: false, error: "Не указана запись." }, { status: 400 });

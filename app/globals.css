@@ -8838,39 +8838,84 @@ body:not(.dark-theme) *::after {
   font-size: .72rem;
 }
 
-.master-workspace .service-price-field svg {
+.master-workspace .service-price-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: .5rem;
+}
+
+.master-workspace .service-price-input-wrap {
+  position: relative;
+  display: block;
+  min-width: 0;
+}
+
+.master-workspace .service-price-input-wrap svg {
   position: absolute;
   right: .8rem;
-  bottom: .78rem;
+  top: 50%;
+  transform: translateY(-50%);
   color: rgb(var(--color-text-secondary));
 }
 
 .master-workspace .service-price-field input {
-  padding-right: 4.25rem;
+  padding-right: 2.65rem;
 }
 
 .master-workspace .service-price-from-toggle {
-  position: absolute;
-  right: 2.15rem;
-  bottom: .5rem;
-  display: inline-flex;
-  min-height: 1.55rem;
+  display: grid;
+  grid-template-columns: auto 1.85rem;
+  width: 4.9rem;
+  min-height: 2.55rem;
   align-items: center;
   justify-content: center;
+  gap: .42rem;
   border: 1px solid rgba(17, 27, 33, .12);
   border-radius: 8px;
   background: var(--surface);
-  padding: 0 .45rem;
+  padding: 0 .52rem;
   color: rgb(var(--color-text-secondary));
-  font-size: .72rem;
+  font-size: .78rem;
   font-weight: 700;
   line-height: 1;
 }
 
 .master-workspace .service-price-from-toggle.is-active {
   border-color: rgb(var(--color-primary));
+  background: rgb(var(--color-primary) / .1);
+  color: rgb(var(--color-primary));
+}
+
+.master-workspace .service-price-from-toggle i {
+  position: relative;
+  display: block;
+  width: 1.85rem;
+  height: 1.05rem;
+  border-radius: 999px;
+  background: rgba(17, 27, 33, .18);
+  transition: background .18s ease;
+}
+
+.master-workspace .service-price-from-toggle i::after {
+  content: "";
+  position: absolute;
+  top: .13rem;
+  left: .13rem;
+  width: .79rem;
+  height: .79rem;
+  border-radius: 999px;
+  background: rgb(var(--color-surface));
+  box-shadow: 0 1px 3px rgba(17, 27, 33, .24);
+  transition: transform .18s ease;
+}
+
+.master-workspace .service-price-from-toggle.is-active i {
   background: rgb(var(--color-primary));
-  color: rgb(var(--color-surface));
+}
+
+.master-workspace .service-price-from-toggle.is-active i::after {
+  transform: translateX(.8rem);
 }
 
 .master-workspace .service-inline-price-from-toggle {
@@ -9580,12 +9625,6 @@ body.dark-theme .master-workspace .service-form-cancel {
   color: #111b21 !important;
   background: rgba(17, 27, 33, .05) !important;
   transform: scale(1.04);
-}
-
-.master-workspace .appointment-confirm > div > div {
-  margin: 0 .75rem .75rem;
-  border-radius: 14px;
-  background: #f7f9fa !important;
 }
 
 .master-workspace .appointment-fab-row {
@@ -17789,35 +17828,6 @@ body.dark-theme .master-workspace .client-reference-history {
   font-variation-settings: normal !important;
 }
 
-.master-workspace .master-booking-actions,
-.master-workspace .whatsapp-mobile-content .master-booking-actions {
-  grid-area: actions;
-  display: flex;
-  justify-content: flex-end;
-  padding: .54rem .35rem 0 0;
-}
-
-.master-workspace .master-booking-menu,
-.master-workspace .whatsapp-mobile-content .master-booking-menu {
-  display: flex;
-  width: 1.8rem;
-  height: 1.8rem;
-  min-height: 0;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: #5f6f6d;
-  transition: background-color 160ms ease, color 160ms ease;
-}
-
-.master-workspace .master-booking-menu:hover,
-.master-workspace .whatsapp-mobile-content .master-booking-menu:hover {
-  background: #f6faf9;
-  color: #111827;
-}
-
 .master-workspace .master-booking-footer,
 .master-workspace .whatsapp-mobile-content .master-booking-footer {
   grid-area: footer;
@@ -19511,7 +19521,7 @@ body:not(.dark-theme) .master-workspace .service-phone-form > .service-form-canc
 
 body:not(.dark-theme) .master-workspace .service-phone-form > .service-duration-field,
 body:not(.dark-theme) .master-workspace .service-phone-form > .service-price-field {
-  grid-column: auto !important;
+  grid-column: 1 / -1 !important;
 }
 
 body:not(.dark-theme) .master-workspace .service-form-field {
@@ -19560,48 +19570,90 @@ body:not(.dark-theme) .master-workspace .service-textarea-field small {
 }
 
 body:not(.dark-theme) .master-workspace .service-duration-control {
-  grid-template-columns: minmax(0, 1fr) 3.55rem !important;
-  gap: 0 !important;
+  grid-template-columns: 2.05rem minmax(0, 1fr) minmax(0, 1fr) 2.05rem !important;
+  gap: .45rem !important;
 }
 
 body:not(.dark-theme) .master-workspace .service-duration-control > button:first-child,
 body:not(.dark-theme) .master-workspace .service-duration-control > label:first-of-type,
-body:not(.dark-theme) .master-workspace .service-duration-control > button:last-child,
+body:not(.dark-theme) .master-workspace .service-form-cancel {
+  display: flex !important;
+}
+
 body:not(.dark-theme) .master-workspace .service-form-cancel {
   display: none !important;
 }
 
+body:not(.dark-theme) .master-workspace .service-duration-control > button:last-child {
+  display: flex !important;
+}
+
+body:not(.dark-theme) .master-workspace .service-duration-control > label:first-of-type,
 body:not(.dark-theme) .master-workspace .service-duration-control > label:last-of-type {
   display: flex !important;
   min-width: 0 !important;
+  align-items: center !important;
+  gap: .36rem !important;
 }
 
+body:not(.dark-theme) .master-workspace .service-duration-control > label:first-of-type input,
 body:not(.dark-theme) .master-workspace .service-duration-control > label:last-of-type input {
-  border-top-right-radius: 0 !important;
-  border-bottom-right-radius: 0 !important;
-  text-align: left !important;
+  text-align: center !important;
 }
 
+body:not(.dark-theme) .master-workspace .service-duration-control > label:first-of-type span,
 body:not(.dark-theme) .master-workspace .service-duration-control > label:last-of-type span {
   display: inline-flex !important;
   min-height: 2.05rem !important;
   align-items: center !important;
   justify-content: center !important;
-  border: 1px solid var(--service-reference-line) !important;
-  border-left: 0 !important;
-  border-radius: 0 7px 7px 0 !important;
-  background: rgba(255, 255, 255, .72) !important;
+  border: 0 !important;
+  background: transparent !important;
   padding: 0 .62rem !important;
   color: #111111 !important;
   font-size: .78rem !important;
   font-weight: 700 !important;
 }
 
+body:not(.dark-theme) .master-workspace .service-duration-control button {
+  width: 2.05rem !important;
+  height: 2.05rem !important;
+  min-height: 2.05rem !important;
+  border-color: var(--service-reference-line) !important;
+  background: rgba(255, 255, 255, .72) !important;
+  color: #111111 !important;
+}
+
 body:not(.dark-theme) .master-workspace .service-price-field input {
   padding-right: 2.65rem !important;
 }
 
-body:not(.dark-theme) .master-workspace .service-price-field svg,
+body:not(.dark-theme) .master-workspace .service-price-control {
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  gap: .45rem !important;
+}
+
+body:not(.dark-theme) .master-workspace .service-price-from-toggle {
+  min-height: 2.05rem !important;
+  border-color: var(--service-reference-line) !important;
+  background: rgba(255, 255, 255, .72) !important;
+  color: #111111 !important;
+}
+
+body:not(.dark-theme) .master-workspace .service-price-from-toggle.is-active {
+  border-color: #111111 !important;
+  background: rgba(17, 17, 17, .08) !important;
+}
+
+body:not(.dark-theme) .master-workspace .service-price-from-toggle i {
+  background: #d5d5d2 !important;
+}
+
+body:not(.dark-theme) .master-workspace .service-price-from-toggle.is-active i {
+  background: #111111 !important;
+}
+
+body:not(.dark-theme) .master-workspace .service-price-input-wrap svg,
 body:not(.dark-theme) .master-workspace .service-material-row svg {
   color: #111111 !important;
   width: .9rem !important;
@@ -24348,6 +24400,18 @@ body:not(.dark-theme) .master-workspace .client-reference-card-note {
   color: #8e8e93;
 }
 
+.master-workspace .appointment-detail-reminders-card > svg {
+  color: #229ed9;
+}
+
+.master-workspace .appointment-detail-reminders-connected {
+  color: #047857 !important;
+}
+
+.master-workspace .appointment-detail-reminders-muted {
+  color: #6f6f73 !important;
+}
+
 .master-workspace .appointment-detail-card div {
   display: grid;
   gap: .22rem;
@@ -24438,6 +24502,60 @@ body:not(.dark-theme) .master-workspace .client-reference-card-note {
   border-color: rgba(209, 47, 47, .2) !important;
   background: #ffffff;
   color: #d12f2f;
+}
+
+.master-workspace .appointment-detail-delete-confirm {
+  display: grid;
+  gap: .75rem;
+  border: 1px solid rgba(209, 47, 47, .18);
+  border-radius: 10px;
+  background: #fff7f7;
+  padding: .85rem;
+}
+
+.master-workspace .appointment-detail-delete-confirm-text {
+  display: flex;
+  align-items: flex-start;
+  gap: .6rem;
+  color: #d12f2f;
+}
+
+.master-workspace .appointment-detail-delete-confirm-text svg {
+  margin-top: .12rem;
+  flex: 0 0 auto;
+}
+
+.master-workspace .appointment-detail-delete-confirm-text strong {
+  display: block;
+  color: #111111;
+  font-size: .95rem;
+  line-height: 1.25;
+}
+
+.master-workspace .appointment-detail-delete-confirm-text p {
+  margin-top: .2rem;
+  color: #6f6f73;
+  font-size: .84rem;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.master-workspace .appointment-detail-delete-confirm-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .5rem;
+}
+
+.master-workspace .appointment-detail-delete-confirm-actions button:first-child {
+  border-color: #d12f2f !important;
+  background: #d12f2f !important;
+  color: #ffffff !important;
+}
+
+.master-workspace .appointment-detail-delete-confirm-actions button:last-child {
+  border-color: rgba(60, 60, 67, .12) !important;
+  background: #ffffff !important;
+  color: #111111 !important;
 }
 
 .master-workspace .appointment-detail-total-row {

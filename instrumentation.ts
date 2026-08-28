@@ -1,6 +1,4 @@
 export async function register() {
-  if (process.env.NEXT_RUNTIME === "edge") return;
-
-  const { ensureTelegramRuntimeStarted } = await import("./lib/telegram-runtime");
-  ensureTelegramRuntimeStarted();
+  // Keep instrumentation free of app server modules: Next compiles this file for
+  // multiple runtimes, and the local DB uses Node built-ins such as crypto/fs.
 }

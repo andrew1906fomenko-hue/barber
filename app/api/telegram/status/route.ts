@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
-import { ensureTelegramRuntimeStarted, getTelegramStatusForAppointment } from "../../../../lib/telegram-runtime";
+import { getTelegramStatusForAppointment } from "../../../../lib/telegram-runtime";
 
 export async function GET(request: Request) {
   try {
-    ensureTelegramRuntimeStarted();
     const { searchParams } = new URL(request.url);
     const appointmentId = searchParams.get("appointmentId") || "";
     const rescheduleToken = searchParams.get("rescheduleToken") || "";

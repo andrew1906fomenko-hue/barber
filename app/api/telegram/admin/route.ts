@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { initDb, pool } from "../../../../lib/db";
 import { getTelegramConfig } from "../../../../lib/telegram";
-import { ensureTelegramRuntimeStarted, sendDueTelegramReminders } from "../../../../lib/telegram-runtime";
+import { sendDueTelegramReminders } from "../../../../lib/telegram-runtime";
 
 type CountRow = { total: string };
 type ConnectedClientRow = {
@@ -16,7 +16,6 @@ const count = async (sql: string) => Number((await pool.query<CountRow>(sql)).ro
 
 export async function GET() {
   try {
-    ensureTelegramRuntimeStarted();
     await initDb();
     const config = getTelegramConfig();
 
