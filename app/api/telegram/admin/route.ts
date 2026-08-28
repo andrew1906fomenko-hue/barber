@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { initDb, pool } from "../../../../lib/db";
 import { getTelegramConfig } from "../../../../lib/telegram";
-import { sendDueTelegramReminders } from "../../../../lib/telegram-runtime";
+import { ensureTelegramRuntimeStarted, sendDueTelegramReminders } from "../../../../lib/telegram-runtime";
 
 type CountRow = { total: string };
 type ConnectedClientRow = {
@@ -16,6 +16,7 @@ const count = async (sql: string) => Number((await pool.query<CountRow>(sql)).ro
 
 export async function GET() {
   try {
+    ensureTelegramRuntimeStarted();
     await initDb();
     const config = getTelegramConfig();
 
@@ -74,8 +75,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Неизвестное действие." }, { status: 400 });
     }
 
-    await sendDueTelegramReminders();
-    return NextResponse.json({ success: true });
+    const result = await sendDueTelegramReminders();
+    return NextResponse.json({ success: true, result });
   } catch (error) {
     console.error("Telegram admin POST error:", error);
     return NextResponse.json({ success: false, error: "Не удалось выполнить действие Telegram." }, { status: 500 });

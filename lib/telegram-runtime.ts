@@ -30,6 +30,7 @@ type ReminderRow = {
   master_name?: string | null;
   address?: string | null;
   city?: string | null;
+  timezone?: string | null;
 };
 
 const globalForTelegram = globalThis as typeof globalThis & {
@@ -46,6 +47,13 @@ const REMINDER_WINDOWS = [
   { type: "2h", minutesBefore: 2 * 60 },
 ];
 
+export type TelegramReminderRunResult = {
+  checked: number;
+  sent: number;
+  failed: number;
+  busy?: boolean;
+};
+
 const escapeHtml = (value: string) =>
   value
     .replace(/&/g, "&amp;")
@@ -59,9 +67,53 @@ const formatAppointmentDate = (date: string) =>
     weekday: "long",
   });
 
-const appointmentDateTime = (date: string, time: string) => new Date(`${date}T${time}:00`);
+const getTimeZoneOffsetMs = (date: Date, timeZone: string) => {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  const asUtc = Date.UTC(
+    Number(values.year),
+    Number(values.month) - 1,
+    Number(values.day),
+    Number(values.hour),
+    Number(values.minute),
+    Number(values.second),
+  );
+  return asUtc - date.getTime();
+};
 
-const minutesUntil = (date: string, time: string) => Math.round((appointmentDateTime(date, time).getTime() - Date.now()) / 60000);
+const appointmentDateTime = (date: string, time: string, timeZone = "Europe/Moscow") => {
+  const [year, month, day] = date.split("-").map(Number);
+  const [hours, minutes] = time.split(":").map(Number);
+  const utcGuess = Date.UTC(year, (month || 1) - 1, day || 1, hours || 0, minutes || 0);
+
+  try {
+    const firstOffset = getTimeZoneOffsetMs(new Date(utcGuess), timeZone);
+    const firstUtc = utcGuess - firstOffset;
+    const secondOffset = getTimeZoneOffsetMs(new Date(firstUtc), timeZone);
+    return new Date(utcGuess - secondOffset);
+  } catch {
+    return new Date(`${date}T${time}:00`);
+  }
+};
+
+const minutesUntil = (date: string, time: string, timeZone?: string | null) =>
+  Math.round((appointmentDateTime(date, time, timeZone || "Europe/Moscow").getTime() - Date.now()) / 60000);
+
+const shouldSendReminder = (deltaMinutes: number, reminder: (typeof REMINDER_WINDOWS)[number]) => {
+  if (deltaMinutes <= 0) return false;
+  const nextReminder = REMINDER_WINDOWS.find((item) => item.minutesBefore < reminder.minutesBefore);
+  const lowerBound = nextReminder?.minutesBefore || 0;
+  return deltaMinutes <= reminder.minutesBefore && deltaMinutes > lowerBound;
+};
 
 export async function ensureTelegramSchema() {
   await initDb();
@@ -304,7 +356,8 @@ async function markReminderSent(appointmentId: string, reminderType: string) {
 }
 
 export async function sendDueTelegramReminders() {
-  if (globalForTelegram.telegramReminderBusy) return;
+  const summary: TelegramReminderRunResult = { checked: 0, sent: 0, failed: 0 };
+  if (globalForTelegram.telegramReminderBusy) return { ...summary, busy: true };
   globalForTelegram.telegramReminderBusy = true;
 
   try {
@@ -320,7 +373,8 @@ export async function sendDueTelegramReminders() {
           services.title AS service_title,
           masters.name AS master_name,
           masters.address,
-          masters.city
+          masters.city,
+          masters.timezone
         FROM appointments
         JOIN masters ON masters.id = appointments.master_id
         JOIN clients
@@ -335,12 +389,18 @@ export async function sendDueTelegramReminders() {
 
     for (const row of result.rows) {
       for (const reminder of REMINDER_WINDOWS) {
-        const delta = minutesUntil(row.date, row.start_time);
-        if (delta < reminder.minutesBefore || delta > reminder.minutesBefore + 5) continue;
+        const delta = minutesUntil(row.date, row.start_time, row.timezone);
+        if (!shouldSendReminder(delta, reminder)) continue;
+        summary.checked += 1;
         if (await reminderAlreadySent(row.id, reminder.type)) continue;
 
-        await sendTelegramMessage(row.telegram_chat_id, buildReminderMessage(row, reminder.type));
-        await markReminderSent(row.id, reminder.type);
+        try {
+          await sendTelegramMessage(row.telegram_chat_id, buildReminderMessage(row, reminder.type));
+          if (await markReminderSent(row.id, reminder.type)) summary.sent += 1;
+        } catch (error) {
+          summary.failed += 1;
+          console.error(`Telegram reminder ${reminder.type} send error for appointment ${row.id}:`, error);
+        }
       }
     }
   } catch (error) {
@@ -348,6 +408,8 @@ export async function sendDueTelegramReminders() {
   } finally {
     globalForTelegram.telegramReminderBusy = false;
   }
+
+  return summary;
 }
 
 export function ensureTelegramRuntimeStarted() {

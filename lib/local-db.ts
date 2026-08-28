@@ -1372,6 +1372,7 @@ export class LocalPool {
               master_name: master?.name || null,
               address: master?.address || null,
               city: master?.city || null,
+              timezone: master?.timezone || null,
             };
           })
           .filter(Boolean),
