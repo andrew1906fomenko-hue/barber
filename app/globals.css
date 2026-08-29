@@ -9631,10 +9631,227 @@ body.dark-theme .master-workspace .service-form-cancel {
   position: fixed;
   right: 1rem;
   bottom: 5.7rem;
-  z-index: 50;
+  z-index: 140;
   display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: .75rem;
   justify-content: flex-end;
   pointer-events: none;
+}
+
+.master-workspace .appointment-fab-row-open {
+  pointer-events: auto;
+}
+
+.appointment-quick-action-menu {
+  display: grid;
+  width: max-content;
+  max-width: min(calc(100vw - 2rem), 21rem);
+  gap: .55rem;
+  pointer-events: auto;
+  transform-origin: right bottom;
+}
+
+.appointment-quick-action-item {
+  display: grid;
+  width: max-content;
+  min-width: min(18.5rem, calc(100vw - 5.5rem));
+  max-width: min(21rem, calc(100vw - 5rem));
+  min-height: 3.9rem;
+  grid-template-columns: 2.35rem minmax(0, 1fr);
+  align-items: center;
+  gap: .7rem;
+  border: 1px solid rgba(15, 23, 42, .08);
+  border-radius: 999px;
+  background: #ffffff;
+  padding: .58rem .78rem .58rem .62rem;
+  text-align: left;
+  color: #183532;
+  box-shadow:
+    0 6px 14px rgba(15, 23, 42, .10),
+    0 1px 0 rgba(255, 255, 255, .82) inset;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  filter: none !important;
+  opacity: 1;
+  transform-origin: right center;
+  animation: appointment-quick-action-in .36s cubic-bezier(.18, .92, .2, 1) both;
+  transition: background-color .16s ease, transform .16s ease, box-shadow .16s ease;
+  transform: none;
+}
+
+.appointment-quick-action-item:nth-child(1) {
+  animation-delay: .045s;
+}
+
+.appointment-quick-action-item:nth-child(2) {
+  animation-delay: .12s;
+}
+
+.appointment-quick-action-item:hover,
+.appointment-quick-action-item:focus-visible {
+  background: #fff;
+  box-shadow:
+    0 8px 18px rgba(15, 23, 42, .12),
+    0 1px 0 rgba(255, 255, 255, .86) inset;
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.appointment-quick-action-item:active {
+  transform: translateY(0) scale(.985);
+}
+
+.appointment-quick-action-icon {
+  display: inline-flex;
+  width: 2.35rem;
+  height: 2.35rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: inherit;
+  opacity: 1;
+  animation: appointment-quick-action-icon-in .52s cubic-bezier(.16, 1, .24, 1.18) both;
+}
+
+.appointment-quick-action-icon svg,
+.appointment-quick-action-icon svg * {
+  opacity: 1;
+  stroke: currentColor !important;
+  fill: currentColor !important;
+}
+
+.appointment-quick-action-item:nth-child(1) .appointment-quick-action-icon {
+  animation-delay: .11s;
+}
+
+.appointment-quick-action-item:nth-child(2) .appointment-quick-action-icon {
+  animation-delay: .19s;
+}
+
+.appointment-quick-action-icon-primary {
+  background: rgb(var(--color-primary));
+  color: #fff;
+  box-shadow: 0 10px 22px rgba(15, 118, 110, .22);
+}
+
+.appointment-quick-action-icon-muted {
+  background: #ccfbf1;
+  color: #0f766e;
+}
+
+.appointment-quick-action-copy {
+  min-width: 0;
+  opacity: 1;
+  animation: appointment-quick-action-copy-in .42s cubic-bezier(.2, .85, .2, 1) both;
+}
+
+.appointment-quick-action-item:nth-child(1) .appointment-quick-action-copy {
+  animation-delay: .13s;
+}
+
+.appointment-quick-action-item:nth-child(2) .appointment-quick-action-copy {
+  animation-delay: .21s;
+}
+
+.appointment-quick-action-copy span,
+.appointment-quick-action-copy small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.appointment-quick-action-copy span {
+  color: #183532;
+  font-size: var(--text-message-size);
+  font-weight: 700;
+  line-height: var(--text-message-line);
+  letter-spacing: 0;
+  opacity: 1;
+}
+
+.appointment-quick-action-copy small {
+  margin-top: .06rem;
+  color: #365754;
+  font-size: var(--text-metadata-size);
+  font-weight: var(--text-metadata-weight);
+  line-height: var(--text-metadata-line);
+  letter-spacing: 0;
+  opacity: 1;
+}
+
+body:not(.dark-theme) .master-workspace .appointment-quick-action-copy span {
+  color: #183532 !important;
+  -webkit-text-fill-color: #183532 !important;
+}
+
+body:not(.dark-theme) .master-workspace .appointment-quick-action-copy small {
+  color: #365754 !important;
+  -webkit-text-fill-color: #365754 !important;
+}
+
+body:not(.dark-theme) .master-workspace .appointment-quick-action-icon-primary {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+body:not(.dark-theme) .master-workspace .appointment-quick-action-icon-muted {
+  color: #0f766e !important;
+  -webkit-text-fill-color: #0f766e !important;
+}
+
+@keyframes appointment-quick-action-in {
+  0% {
+    clip-path: inset(18% 0 18% 72% round 999px);
+    opacity: 0;
+    transform: translate(2.2rem, .9rem);
+  }
+  64% {
+    clip-path: inset(0 0 0 0 round 999px);
+    opacity: 1;
+    transform: translate(-.16rem, -.06rem);
+  }
+  82% {
+    transform: translate(.04rem, .02rem);
+  }
+  100% {
+    clip-path: inset(0 0 0 0 round 999px);
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes appointment-quick-action-icon-in {
+  from {
+    opacity: 0;
+    transform: scale(.3) rotate(-28deg);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(0);
+  }
+}
+
+@keyframes appointment-quick-action-copy-in {
+  from {
+    opacity: 0;
+    transform: translate3d(.55rem, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .appointment-quick-action-item,
+  .appointment-quick-action-icon,
+  .appointment-quick-action-copy {
+    animation-duration: .01ms !important;
+    animation-delay: 0ms !important;
+  }
 }
 
 .master-workspace .appointment-fab {
@@ -30393,6 +30610,11 @@ body:not(.dark-theme) .master-workspace .weekday-settings-screen .weekday-booksy
 body:not(.dark-theme) .individual-work-hours-screen,
 body:not(.dark-theme) .master-workspace .individual-work-hours-screen {
   background: #ffffff !important;
+}
+
+body:not(.dark-theme) .individual-work-hours-screen.date-work-hours-sheet-motion,
+body:not(.dark-theme) .master-workspace .individual-work-hours-screen.date-work-hours-sheet-motion {
+  animation: client-bottom-sheet-slide-up .22s ease-out forwards;
 }
 
 body:not(.dark-theme) .individual-work-hours-screen .individual-schedule-content,
