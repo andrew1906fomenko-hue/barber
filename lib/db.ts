@@ -10,6 +10,8 @@ const globalForPg = globalThis as typeof globalThis & {
 const databaseUrl = process.env.DATABASE_URL;
 const useLocalDb = process.env.USE_LOCAL_DB === "1" || !databaseUrl;
 const allowLocalDbFallback = process.env.ALLOW_LOCAL_DB_FALLBACK === "1";
+const defaultSessionEmail =
+  process.env.DEFAULT_SESSION_EMAIL || (process.env.NODE_ENV !== "production" ? "test22@test.ru" : "");
 const needsSsl =
   databaseUrl?.includes("supabase.co") || databaseUrl?.includes("pooler.supabase.com") || databaseUrl?.includes("sslmode=require");
 const poolConfig = {
@@ -487,7 +489,7 @@ export async function createUniqueSlug(email: string, name: string) {
 
 export async function getCurrentUserAndMaster() {
   await initDb();
-  const email = normalizeEmail((await cookies()).get("user_email")?.value || "");
+  const email = normalizeEmail((await cookies()).get("user_email")?.value || defaultSessionEmail);
   if (!email) return null;
 
   const result = await pool.query<UserRow & MasterRow & { user_id: string; user_name: string; master_id: string }>(

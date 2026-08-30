@@ -18,6 +18,20 @@ export default function LoginPage() {
     document.body.classList.remove("dark-theme");
     window.localStorage.setItem("dashboard-theme", "light");
     router.prefetch("/dashboard");
+
+    let active = true;
+    void fetch("/api/me", { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: { success?: boolean } | null) => {
+        if (active && data?.success) router.replace("/dashboard");
+      })
+      .catch(() => {
+        // Keep the manual form available if the session check fails.
+      });
+
+    return () => {
+      active = false;
+    };
   }, [router]);
 
   const login = async (event: React.FormEvent) => {
