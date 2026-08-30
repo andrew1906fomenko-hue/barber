@@ -1,0 +1,58 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.fastbook.shell"
+4    android:versionCode="1"
+5    android:versionName="1.0" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="23"
+9        android:targetSdkVersion="35" />
+10
+11    <uses-permission android:name="android.permission.INTERNET" />
+11-->C:\Users\Пользователь\Desktop\Main\Barber — копия (4)\mobile-shell\android\app\src\main\AndroidManifest.xml:3:5-67
+11-->C:\Users\Пользователь\Desktop\Main\Barber — копия (4)\mobile-shell\android\app\src\main\AndroidManifest.xml:3:22-64
+12    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+12-->C:\Users\Пользователь\Desktop\Main\Barber — копия (4)\mobile-shell\android\app\src\main\AndroidManifest.xml:4:5-79
+12-->C:\Users\Пользователь\Desktop\Main\Barber — копия (4)\mobile-shell\android\app\src\main\AndroidManifest.xml:4:22-76
+13    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+13-->C:\Users\Пользователь\Desktop\Main\Barber — копия (4)\mobile-shell\android\app\src\main\AndroidManifest.xml:5:5-76
+13-->C:\Users\Пользователь\Desktop\Main\Barber — копия (4)\mobile-shell\android\app\src\main\AndroidManifest.xml:5:22-73
+14
+15    <application
+15-->C:\Users\Пользователь\Desktop\Main\Barber — копия (4)\mobile-shell\android\app\src\main\AndroidManifest.xml:7:5-23:19
+16        android:allowBackup="true"
+16-->C:\Users\Пользователь\Desktop\Main\Barber — копия (4)\mobile-shell\android\app\src\main\AndroidManifest.xml:8:9-35
+17        android:debuggable="true"
+18        android:extractNativeLibs="false"
+19        android:icon="@mipmap/ic_launcher"
+19-->C:\Users\Пользователь\Desktop\Main\Barber — копия (4)\mobile-shell\android\app\src\main\AndroidManifest.xml:9:9-43
+20        android:label="@string/app_name"
+20-->C:\Users\Пользователь\Desktop\Main\Barber — копия (4)\mobile-shell\android\app\src\main\AndroidManifest.xml:10:9-41
+21        android:networkSecurityConfig="@xml/network_security_config"
+21-->C:\Users\Пользователь\Desktop\Main\Barber — копия (4)\mobile-shell\android\app\src\main\AndroidManifest.xml:11:9-69
+22        android:theme="@style/AppTheme"
+22-->C:\Users\Пользователь\Desktop\Main\Barber — копия (4)\mobile-shell\android\app\src\main\AndroidManifest.xml:12:9-40
+23        android:usesCleartextTraffic="true" >
+23-->C:\Users\Пользователь\Desktop\Main\Barber — копия (4)\mobile-shell\android\app\src\main\AndroidManifest.xml:13:9-44
+24        <activity
+24-->C:\Users\Пользователь\Desktop\Main\Barber — копия (4)\mobile-shell\android\app\src\main\AndroidManifest.xml:14:9-22:20
+25            android:name="com.fastbook.shell.MainActivity"
+25-->C:\Users\Пользователь\Desktop\Main\Barber — копия (4)\mobile-shell\android\app\src\main\AndroidManifest.xml:15:13-41
+26            android:configChanges="keyboardHidden|orientation|screenSize"
+26-->C:\Users\Пользователь\Desktop\Main\Barber — копия (4)\mobile-shell\android\app\src\main\AndroidManifest.xml:16:13-74
+27            android:exported="true" >
+27-->C:\Users\Пользователь\Desktop\Main\Barber — копия (4)\mobile-shell\android\app\src\main\AndroidManifest.xml:17:13-36
+28            <intent-filter>
+28-->C:\Users\Пользователь\Desktop\Main\Barber — копия (4)\mobile-shell\android\app\src\main\AndroidManifest.xml:18:13-21:29
+29                <action android:name="android.intent.action.MAIN" />
+29-->C:\Users\Пользователь\Desktop\Main\Barber — копия (4)\mobile-shell\android\app\src\main\AndroidManifest.xml:19:17-69
+29-->C:\Users\Пользователь\Desktop\Main\Barber — копия (4)\mobile-shell\android\app\src\main\AndroidManifest.xml:19:25-66
+30
+31                <category android:name="android.intent.category.LAUNCHER" />
+31-->C:\Users\Пользователь\Desktop\Main\Barber — копия (4)\mobile-shell\android\app\src\main\AndroidManifest.xml:20:17-77
+31-->C:\Users\Пользователь\Desktop\Main\Barber — копия (4)\mobile-shell\android\app\src\main\AndroidManifest.xml:20:27-74
+32            </intent-filter>
+33        </activity>
+34    </application>
+35
+36</manifest>

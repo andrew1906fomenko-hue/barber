@@ -1,0 +1,7 @@
+#Sun Aug 30 16:06:59 MSK 2026
+base.1=C\:\\Users\\Пользователь\\Desktop\\Main\\Barber — копия (4)\\mobile-shell\\android\\app\\build\\intermediates\\dex\\debug\\mergeProjectDexDebug\\12\\classes.dex
+path.1=12/classes.dex
+base.0=C\:\\Users\\Пользователь\\Desktop\\Main\\Barber — копия (4)\\mobile-shell\\android\\app\\build\\intermediates\\dex\\debug\\mergeProjectDexDebug\\0\\classes.dex
+renamed.1=classes2.dex
+renamed.0=classes.dex
+path.0=0/classes.dex

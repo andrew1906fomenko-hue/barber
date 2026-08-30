@@ -3368,7 +3368,7 @@
       "is_active": true,
       "sort_order": 50,
       "created_at": "2026-07-19T18:13:59.114Z",
-      "updated_at": "2026-08-25T15:56:04.776Z"
+      "updated_at": "2026-08-29T20:47:49.850Z"
     },
     {
       "id": "35f360a2-5602-4a39-826f-14814e69d3ec",
@@ -3381,7 +3381,7 @@
       "is_active": true,
       "sort_order": 10,
       "created_at": "2026-07-19T18:13:59.124Z",
-      "updated_at": "2026-08-25T15:56:04.755Z"
+      "updated_at": "2026-08-29T20:47:49.836Z"
     },
     {
       "id": "63d81dec-4ee6-49c5-8ca6-84b9bd4ba5ee",
@@ -3394,7 +3394,7 @@
       "is_active": true,
       "sort_order": 20,
       "created_at": "2026-07-19T18:13:59.125Z",
-      "updated_at": "2026-08-25T15:56:04.761Z"
+      "updated_at": "2026-08-29T20:47:49.840Z"
     },
     {
       "id": "afb45278-bcee-4d31-884c-ee62b3a87a90",
@@ -3407,7 +3407,7 @@
       "is_active": true,
       "sort_order": 30,
       "created_at": "2026-07-19T18:13:59.126Z",
-      "updated_at": "2026-08-25T15:56:04.766Z"
+      "updated_at": "2026-08-29T20:47:49.843Z"
     },
     {
       "id": "075d6493-7797-45a3-a754-145a49c4e576",
@@ -3420,7 +3420,7 @@
       "is_active": true,
       "sort_order": 40,
       "created_at": "2026-07-19T18:13:59.128Z",
-      "updated_at": "2026-08-25T15:56:04.772Z"
+      "updated_at": "2026-08-29T20:47:49.847Z"
     }
   ],
   "subscriptions": [

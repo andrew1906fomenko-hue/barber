@@ -1,0 +1,8 @@
+com.fastbook.shell:string/app_name = 0x7f040000
+com.fastbook.shell:xml/network_security_config = 0x7f060000
+com.fastbook.shell:mipmap/ic_launcher = 0x7f030000
+com.fastbook.shell:mipmap/ic_launcher_round = 0x7f030001
+com.fastbook.shell:drawable/ic_launcher_foreground = 0x7f020000
+com.fastbook.shell:style/AppTheme = 0x7f050000
+com.fastbook.shell:color/brand_dark = 0x7f010001
+com.fastbook.shell:color/brand = 0x7f010000

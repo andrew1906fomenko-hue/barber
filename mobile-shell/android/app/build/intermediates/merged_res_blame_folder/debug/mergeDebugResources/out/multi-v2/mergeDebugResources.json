@@ -1,0 +1,55 @@
+{
+    "logs": [
+        {
+            "outputFile": "com.fastbook.shell.app-debug-4:/values_values.arsc.flat",
+            "map": [
+                {
+                    "source": "C:\\Users\\Пользователь\\Desktop\\Main\\Barber — копия (4)\\mobile-shell\\android\\app\\src\\main\\res\\values\\strings.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endColumns": "45",
+                        "endOffsets": "96"
+                    },
+                    "to": {
+                        "startLines": "4",
+                        "startColumns": "4",
+                        "startOffsets": "140",
+                        "endColumns": "45",
+                        "endOffsets": "181"
+                    }
+                },
+                {
+                    "source": "C:\\Users\\Пользователь\\Desktop\\Main\\Barber — копия (4)\\mobile-shell\\android\\app\\src\\main\\res\\values\\styles.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endLines": "7",
+                        "endColumns": "12",
+                        "endOffsets": "384"
+                    },
+                    "to": {
+                        "startLines": "5",
+                        "startColumns": "4",
+                        "startOffsets": "186",
+                        "endLines": "10",
+                        "endColumns": "12",
+                        "endOffsets": "515"
+                    }
+                },
+                {
+                    "source": "C:\\Users\\Пользователь\\Desktop\\Main\\Barber — копия (4)\\mobile-shell\\android\\app\\src\\main\\res\\values\\colors.xml",
+                    "from": {
+                        "startLines": "2,3",
+                        "startColumns": "4,4",
+                        "startOffsets": "55,95",
+                        "endColumns": "39,44",
+                        "endOffsets": "90,135"
+                    }
+                }
+            ]
+        }
+    ]
+}
