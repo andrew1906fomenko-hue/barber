@@ -9689,6 +9689,10 @@ body.dark-theme .master-workspace .service-form-cancel {
   animation-delay: 0s;
 }
 
+.appointment-quick-action-item:nth-child(3) {
+  animation-delay: 0s;
+}
+
 .appointment-quick-action-item:hover,
 .appointment-quick-action-item:focus-visible {
   background: #fff;
@@ -9730,6 +9734,10 @@ body.dark-theme .master-workspace .service-form-cancel {
   animation-delay: 0s;
 }
 
+.appointment-quick-action-item:nth-child(3) .appointment-quick-action-icon {
+  animation-delay: 0s;
+}
+
 .appointment-quick-action-icon-primary {
   background: rgb(var(--color-primary));
   color: #fff;
@@ -9739,6 +9747,11 @@ body.dark-theme .master-workspace .service-form-cancel {
 .appointment-quick-action-icon-muted {
   background: #ccfbf1;
   color: #0f766e;
+}
+
+.appointment-quick-action-icon-slots {
+  background: #e8f1ff;
+  color: #2563eb;
 }
 
 .appointment-quick-action-copy {
@@ -9752,6 +9765,10 @@ body.dark-theme .master-workspace .service-form-cancel {
 }
 
 .appointment-quick-action-item:nth-child(2) .appointment-quick-action-copy {
+  animation-delay: 0s;
+}
+
+.appointment-quick-action-item:nth-child(3) .appointment-quick-action-copy {
   animation-delay: 0s;
 }
 
@@ -9800,6 +9817,11 @@ body:not(.dark-theme) .master-workspace .appointment-quick-action-icon-primary {
 body:not(.dark-theme) .master-workspace .appointment-quick-action-icon-muted {
   color: #0f766e !important;
   -webkit-text-fill-color: #0f766e !important;
+}
+
+body:not(.dark-theme) .master-workspace .appointment-quick-action-icon-slots {
+  color: #2563eb !important;
+  -webkit-text-fill-color: #2563eb !important;
 }
 
 @keyframes appointment-quick-action-in {
@@ -9852,6 +9874,418 @@ body:not(.dark-theme) .master-workspace .appointment-quick-action-icon-muted {
     animation-duration: .01ms !important;
     animation-delay: 0ms !important;
   }
+}
+
+.master-workspace .free-slots-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 1.05rem;
+  overflow: hidden;
+  background: #111316;
+  color: #ffffff;
+  padding: calc(env(safe-area-inset-top) + 1rem) max(1rem, env(safe-area-inset-right)) calc(env(safe-area-inset-bottom) + 1rem) max(1rem, env(safe-area-inset-left));
+}
+
+.master-workspace .free-slots-topbar {
+  display: grid;
+  grid-template-columns: 3rem minmax(0, 1fr);
+  align-items: center;
+  gap: .75rem;
+}
+
+.master-workspace .free-slots-icon-button {
+  display: inline-flex;
+  width: 3rem;
+  height: 3rem;
+  min-height: 3rem;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .08);
+  color: #ffffff;
+}
+
+.master-workspace .free-slots-topbar-actions {
+  display: flex;
+  min-width: 0;
+  justify-content: flex-end;
+  gap: .5rem;
+}
+
+.master-workspace .free-slots-copy-button,
+.master-workspace .free-slots-share-button {
+  min-height: 3rem;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .12);
+  color: #ffffff;
+  padding: 0 1rem;
+  font-size: var(--text-metadata-size);
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.master-workspace .free-slots-share-button {
+  padding: 0 1.25rem;
+  font-size: var(--text-message-size);
+  font-weight: 750;
+}
+
+.master-workspace .free-slots-card {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 0;
+  background: #313a56;
+  padding: clamp(2rem, 7vh, 4.6rem) 1.35rem 1.25rem;
+}
+
+.master-workspace .free-slots-hero {
+  flex: 0 0 auto;
+  text-align: center;
+}
+
+.master-workspace .free-slots-hero p,
+.master-workspace .free-slots-hero h2 {
+  margin: 0;
+  color: #ffffff;
+  font-size: clamp(2rem, 8vw, 3.4rem);
+  font-weight: 300;
+  line-height: 1.12;
+  letter-spacing: 0;
+}
+
+.master-workspace .free-slots-hero h2 {
+  margin-top: .1rem;
+}
+
+.master-workspace .free-slots-body {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  padding: 1.6rem 0;
+}
+
+.master-workspace .free-slots-card-week {
+  padding-top: clamp(1.4rem, 5vh, 2.8rem);
+}
+
+.master-workspace .free-slots-card-week .free-slots-body {
+  align-items: stretch;
+  padding: .9rem 0 0;
+}
+
+.master-workspace .free-slots-empty {
+  display: grid;
+  justify-items: center;
+  gap: 1rem;
+  text-align: center;
+}
+
+.master-workspace .free-slots-empty p {
+  margin: 0;
+  font-size: clamp(1.45rem, 5vw, 2.1rem);
+  font-weight: 400;
+  line-height: 1.2;
+}
+
+.master-workspace .free-slots-empty button,
+.master-workspace .free-slots-card-actions > button:first-child {
+  min-height: 3.35rem;
+  border: 0;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #111111;
+  padding: 0 1.65rem;
+  font-size: var(--text-button-size);
+  font-weight: 750;
+}
+
+.master-workspace .free-slots-list {
+  display: grid;
+  width: 100%;
+  max-height: 100%;
+  gap: 1.15rem;
+  overflow-y: auto;
+  padding: .1rem .1rem .4rem;
+}
+
+.master-workspace .free-slots-day {
+  display: grid;
+  gap: .9rem;
+}
+
+.master-workspace .free-slots-day h3 {
+  margin: 0;
+  color: rgba(255, 255, 255, .72);
+  font-size: var(--text-message-size);
+  font-weight: 500;
+}
+
+.master-workspace .free-slots-day > div {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(4.25rem, 1fr));
+  gap: .95rem 1.05rem;
+  align-items: center;
+}
+
+.master-workspace .free-slots-day button {
+  display: inline-flex;
+  min-width: 0;
+  min-height: 2rem;
+  align-items: center;
+  justify-content: flex-start;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #ffffff;
+  padding: 0 .15rem;
+  text-align: left;
+  transition: color .16s ease, transform .16s ease;
+}
+
+.master-workspace .free-slots-day button:active {
+  color: rgba(255, 255, 255, .78);
+  transform: scale(.96);
+}
+
+.master-workspace .free-slots-day button span {
+  font-size: clamp(.92rem, 3.6vw, 1rem);
+  font-weight: 560;
+  line-height: 1.25;
+  letter-spacing: 0;
+}
+
+.master-workspace .free-slots-day button small {
+  color: rgba(255, 255, 255, .64);
+  font-size: var(--text-metadata-size);
+  font-weight: 450;
+}
+
+.master-workspace .free-slots-list-week-full {
+  overflow: hidden;
+}
+
+.master-workspace .free-slots-week-summary {
+  display: grid;
+  width: 100%;
+  align-content: center;
+  gap: clamp(.62rem, 1.8vh, .95rem);
+  overflow: hidden;
+}
+
+.master-workspace .free-slots-week-summary article {
+  display: grid;
+  grid-template-columns: minmax(6.2rem, 7.6rem) minmax(0, 1fr);
+  align-items: baseline;
+  gap: .75rem;
+}
+
+.master-workspace .free-slots-week-summary h3,
+.master-workspace .free-slots-week-summary p {
+  margin: 0;
+  letter-spacing: 0;
+  line-height: 1.22;
+}
+
+.master-workspace .free-slots-week-summary h3 {
+  color: rgba(255, 255, 255, .82);
+  font-size: clamp(.98rem, 4vw, 1.18rem);
+  font-weight: 330;
+  line-height: 1.18;
+}
+
+.master-workspace .free-slots-week-summary p {
+  color: #ffffff;
+  font-size: var(--text-message-size);
+  font-weight: 560;
+}
+
+.master-workspace .free-slots-card-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 3.35rem 3.35rem 3.35rem;
+  align-items: center;
+  gap: .56rem;
+}
+
+.master-workspace .free-slots-card-actions button:not(:first-child) {
+  width: 3.35rem;
+  min-height: 3.35rem;
+  border: 1px solid rgba(255, 255, 255, .16);
+  border-radius: 999px;
+  background: rgba(18, 24, 38, .32);
+  color: transparent;
+  overflow: hidden;
+  position: relative;
+}
+
+.master-workspace .free-slots-card-actions button:not(:first-child)::before {
+  content: "";
+  position: absolute;
+  inset: 50% auto auto 50%;
+  width: .7rem;
+  height: .7rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .58);
+  transform: translate(-50%, -50%);
+}
+
+.master-workspace .free-slots-card-actions button[aria-pressed="true"] {
+  background: rgba(255, 255, 255, .18);
+}
+
+.master-workspace .free-slots-card-actions button[aria-pressed="true"]::before {
+  background: #ffffff;
+}
+
+.master-workspace .free-slots-period-row {
+  display: none;
+  grid-template-columns: 3rem minmax(0, 1fr) 3rem;
+  align-items: center;
+  gap: .65rem;
+}
+
+.master-workspace .free-slots-period-row strong {
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: clamp(1.2rem, 5vw, 1.8rem);
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.master-workspace .free-slots-mode-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .45rem;
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, .08);
+  padding: .35rem;
+}
+
+.master-workspace .free-slots-mode-tabs button {
+  min-height: 3rem;
+  border: 0;
+  border-radius: .78rem;
+  background: transparent;
+  color: rgba(255, 255, 255, .58);
+  font-size: var(--text-button-size);
+  font-weight: 650;
+}
+
+.master-workspace .free-slots-mode-tabs .free-slots-mode-active {
+  background: rgba(255, 255, 255, .18);
+  color: #ffffff;
+}
+
+body:has(.free-slots-screen) .appointment-fab-row {
+  display: none !important;
+}
+
+.master-workspace .free-slots-date-wheel {
+  display: flex;
+  min-height: 3.2rem;
+  align-items: center;
+  gap: .2rem;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  padding: 0 calc(50% - 3.6rem);
+  mask-image: linear-gradient(90deg, transparent 0, #000 6%, #000 94%, transparent 100%);
+}
+
+.master-workspace .free-slots-date-wheel::-webkit-scrollbar {
+  display: none;
+}
+
+.master-workspace .free-slots-date-wheel button {
+  flex: 0 0 auto;
+  min-width: 7.2rem;
+  min-height: 3.05rem;
+  scroll-snap-align: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(255, 255, 255, .48);
+  padding: 0 .75rem;
+  font-size: clamp(.95rem, 4.3vw, 1.28rem);
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.master-workspace .free-slots-date-wheel .free-slots-date-active {
+  color: #ffffff;
+  font-weight: 650;
+}
+
+.master-workspace .free-slots-date-wheel button span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.master-workspace .free-slots-share-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 170;
+  display: flex;
+  align-items: flex-end;
+  background: rgba(0, 0, 0, .46);
+}
+
+.master-workspace .free-slots-share-sheet section {
+  width: 100%;
+  max-height: min(72vh, 32rem);
+  overflow-y: auto;
+  border-radius: 1.4rem 1.4rem 0 0;
+  background: #ffffff;
+  color: #111111;
+  padding: .72rem 1rem calc(env(safe-area-inset-bottom) + 1rem);
+}
+
+.master-workspace .free-slots-share-handle {
+  width: 3.2rem;
+  height: .34rem;
+  margin: 0 auto 1rem;
+  border-radius: 999px;
+  background: #d7dce4;
+}
+
+.master-workspace .free-slots-share-sheet h3 {
+  margin: 0 0 .85rem;
+  font-size: clamp(1.25rem, 5vw, 1.7rem);
+  font-weight: 750;
+  line-height: 1.16;
+  letter-spacing: 0;
+}
+
+.master-workspace .free-slots-share-sheet button {
+  display: grid;
+  width: 100%;
+  min-height: 3.6rem;
+  grid-template-columns: 2.4rem minmax(0, 1fr);
+  align-items: center;
+  gap: .72rem;
+  border: 0;
+  border-radius: .9rem;
+  background: transparent;
+  color: #111111;
+  padding: .55rem .35rem;
+  text-align: left;
+  font-size: var(--text-message-size);
+  font-weight: 600;
+}
+
+.master-workspace .free-slots-share-sheet button:active {
+  background: #f3f5f7;
 }
 
 .master-workspace .appointment-fab {
