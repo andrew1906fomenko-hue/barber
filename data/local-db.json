@@ -499,7 +499,7 @@
       "sort_order": 0,
       "is_public": true,
       "calendar_color": "#0f766e",
-      "is_active": true,
+      "is_active": false,
       "included_items": [
         "Консультация клиента",
         "Мойка авто",

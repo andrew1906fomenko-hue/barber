@@ -13,11 +13,11 @@
                         "endOffsets": "96"
                     },
                     "to": {
-                        "startLines": "4",
+                        "startLines": "5",
                         "startColumns": "4",
-                        "startOffsets": "140",
+                        "startOffsets": "189",
                         "endColumns": "45",
-                        "endOffsets": "181"
+                        "endOffsets": "230"
                     }
                 },
                 {
@@ -26,27 +26,34 @@
                         "startLines": "2",
                         "startColumns": "4",
                         "startOffsets": "55",
-                        "endLines": "7",
+                        "endLines": "11",
                         "endColumns": "12",
-                        "endOffsets": "384"
+                        "endOffsets": "693"
                     },
                     "to": {
-                        "startLines": "5",
+                        "startLines": "6",
                         "startColumns": "4",
-                        "startOffsets": "186",
-                        "endLines": "10",
+                        "startOffsets": "235",
+                        "endLines": "15",
                         "endColumns": "12",
-                        "endOffsets": "515"
+                        "endOffsets": "873"
                     }
                 },
                 {
                     "source": "C:\\Users\\Пользователь\\Desktop\\Main\\Barber — копия (4)\\mobile-shell\\android\\app\\src\\main\\res\\values\\colors.xml",
                     "from": {
-                        "startLines": "2,3",
-                        "startColumns": "4,4",
-                        "startOffsets": "55,95",
-                        "endColumns": "39,44",
-                        "endOffsets": "90,135"
+                        "startLines": "4,2,3",
+                        "startColumns": "4,4,4",
+                        "startOffsets": "140,55,95",
+                        "endColumns": "48,39,44",
+                        "endOffsets": "184,90,135"
+                    },
+                    "to": {
+                        "startLines": "2,3,4",
+                        "startColumns": "4,4,4",
+                        "startOffsets": "55,104,144",
+                        "endColumns": "48,39,44",
+                        "endOffsets": "99,139,184"
                     }
                 }
             ]

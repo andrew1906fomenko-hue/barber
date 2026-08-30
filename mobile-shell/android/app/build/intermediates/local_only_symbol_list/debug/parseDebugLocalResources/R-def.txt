@@ -1,5 +1,6 @@
 R_DEF: Internal format may change without notice
 local
+color app_system_bar
 color brand
 color brand_dark
 drawable ic_launcher_foreground

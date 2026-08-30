@@ -2,4 +2,5 @@
 <resources>
     <color name="brand">#FF5A7A</color>
     <color name="brand_dark">#D93F61</color>
+    <color name="app_system_bar">#111111</color>
 </resources>

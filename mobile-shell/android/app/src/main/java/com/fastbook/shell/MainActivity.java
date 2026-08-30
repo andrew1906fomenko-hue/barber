@@ -6,6 +6,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.net.wifi.WifiManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.text.format.Formatter;
 import android.text.InputType;
@@ -13,6 +14,9 @@ import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.Window;
+import android.view.WindowInsets;
+import android.webkit.JavascriptInterface;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
@@ -58,8 +62,12 @@ public class MainActivity extends Activity {
     };
     private static final int CONNECT_TIMEOUT_MS = 650;
     private static final int READ_TIMEOUT_MS = 650;
+    private static final int DEFAULT_SYSTEM_BAR_COLOR = Color.WHITE;
+    private static final int CONTENT_SIDE_PADDING_DP = 28;
 
     private WebView webView;
+    private View statusBarBackground;
+    private View navigationBarBackground;
     private LinearLayout statusPanel;
     private TextView titleView;
     private TextView detailView;
@@ -71,13 +79,40 @@ public class MainActivity extends Activity {
     private float pullStartY;
     private boolean pullRefreshCandidate;
     private boolean pullRefreshArmed;
+    private int systemInsetTop;
+    private int systemInsetBottom;
+    private int currentStatusBarColor = DEFAULT_SYSTEM_BAR_COLOR;
+    private int currentNavigationBarColor = DEFAULT_SYSTEM_BAR_COLOR;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        configureSystemBars();
         buildUi();
         configureWebView();
         discoverAndOpen();
+    }
+
+    private void configureSystemBars() {
+        Window window = getWindow();
+        window.setStatusBarColor(DEFAULT_SYSTEM_BAR_COLOR);
+        window.setNavigationBarColor(DEFAULT_SYSTEM_BAR_COLOR);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.setStatusBarContrastEnforced(false);
+            window.setNavigationBarContrastEnforced(false);
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            window.setDecorFitsSystemWindows(false);
+        }
+
+        int flags = window.getDecorView().getSystemUiVisibility();
+        flags |= View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION;
+        flags = setSystemBarIconFlags(flags, DEFAULT_SYSTEM_BAR_COLOR, DEFAULT_SYSTEM_BAR_COLOR);
+        window.getDecorView().setSystemUiVisibility(flags);
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -90,6 +125,7 @@ public class MainActivity extends Activity {
         settings.setLoadWithOverviewMode(true);
         settings.setUseWideViewPort(true);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
+        webView.addJavascriptInterface(new SystemBarBridge(), "FastBookSystemBars");
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
@@ -98,6 +134,7 @@ public class MainActivity extends Activity {
                 if (url != null && url.startsWith("http://")) {
                     saveBaseUrl(toBaseUrl(url));
                     showWebView();
+                    injectSystemBarColorProbe();
                 }
             }
 
@@ -141,10 +178,28 @@ public class MainActivity extends Activity {
 
     private void buildUi() {
         FrameLayout root = new FrameLayout(this);
+        root.setBackgroundColor(DEFAULT_SYSTEM_BAR_COLOR);
         webView = new WebView(this);
+        webView.setBackgroundColor(DEFAULT_SYSTEM_BAR_COLOR);
         root.addView(webView, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+
+        statusBarBackground = new View(this);
+        statusBarBackground.setBackgroundColor(DEFAULT_SYSTEM_BAR_COLOR);
+        root.addView(statusBarBackground, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                0,
+                Gravity.TOP
+        ));
+
+        navigationBarBackground = new View(this);
+        navigationBarBackground.setBackgroundColor(DEFAULT_SYSTEM_BAR_COLOR);
+        root.addView(navigationBarBackground, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                0,
+                Gravity.BOTTOM
         ));
 
         statusPanel = new LinearLayout(this);
@@ -217,7 +272,146 @@ public class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT
         ));
 
+        applySystemBarInsets();
+        root.setOnApplyWindowInsetsListener((view, insets) -> {
+            systemInsetTop = insets.getSystemWindowInsetTop();
+            systemInsetBottom = insets.getSystemWindowInsetBottom();
+            applySystemBarInsets();
+            applySystemBarColors(currentStatusBarColor, currentNavigationBarColor);
+            return insets;
+        });
+
         setContentView(root);
+        root.requestApplyInsets();
+    }
+
+    private void applySystemBarInsets() {
+        if (webView != null) {
+            webView.setPadding(0, systemInsetTop, 0, systemInsetBottom);
+        }
+
+        if (statusBarBackground != null) {
+            ViewGroup.LayoutParams params = statusBarBackground.getLayoutParams();
+            params.height = systemInsetTop;
+            statusBarBackground.setLayoutParams(params);
+        }
+
+        if (navigationBarBackground != null) {
+            ViewGroup.LayoutParams params = navigationBarBackground.getLayoutParams();
+            params.height = systemInsetBottom;
+            navigationBarBackground.setLayoutParams(params);
+        }
+
+        if (statusPanel != null) {
+            statusPanel.setPadding(
+                    dp(CONTENT_SIDE_PADDING_DP),
+                    dp(CONTENT_SIDE_PADDING_DP) + systemInsetTop,
+                    dp(CONTENT_SIDE_PADDING_DP),
+                    dp(CONTENT_SIDE_PADDING_DP) + systemInsetBottom
+            );
+        }
+    }
+
+    private void injectSystemBarColorProbe() {
+        String script = "(function(){"
+                + "if(window.__fastBookSystemBarsInstalled){window.__fastBookSystemBarsUpdate&&window.__fastBookSystemBarsUpdate();return;}"
+                + "window.__fastBookSystemBarsInstalled=true;"
+                + "function solid(c){var m=String(c||'').match(/rgba?\\(([^)]+)\\)/);if(!m)return c||'#ffffff';var p=m[1].split(',').map(function(v){return parseFloat(v)});return p.length<4||p[3]>0.2?c:'';}"
+                + "function colorAt(y){var x=Math.max(1,Math.floor(window.innerWidth/2));var el=document.elementFromPoint(x,Math.max(1,Math.min(window.innerHeight-1,y)));while(el){var cs=getComputedStyle(el);var bg=solid(cs.backgroundColor);if(bg)return bg;el=el.parentElement;}var body=getComputedStyle(document.body);var html=getComputedStyle(document.documentElement);return solid(body.backgroundColor)||solid(html.backgroundColor)||'#ffffff';}"
+                + "var timer=0;function send(){timer=0;try{FastBookSystemBars.setColors(colorAt(1),colorAt(window.innerHeight-2));}catch(e){}}"
+                + "function schedule(){if(timer)return;timer=setTimeout(send,80);}"
+                + "window.__fastBookSystemBarsUpdate=schedule;"
+                + "['scroll','resize','orientationchange','click','keyup','touchend','popstate'].forEach(function(n){window.addEventListener(n,schedule,true);});"
+                + "new MutationObserver(schedule).observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class','style','hidden','open']});"
+                + "schedule();setInterval(schedule,700);"
+                + "})();";
+        webView.evaluateJavascript(script, null);
+    }
+
+    private class SystemBarBridge {
+        @JavascriptInterface
+        public void setColors(String statusColor, String navigationColor) {
+            int top = parseCssColor(statusColor, currentStatusBarColor);
+            int bottom = parseCssColor(navigationColor, currentNavigationBarColor);
+            runOnUiThread(() -> applySystemBarColors(top, bottom));
+        }
+    }
+
+    private void applySystemBarColors(int statusColor, int navigationColor) {
+        currentStatusBarColor = statusColor;
+        currentNavigationBarColor = navigationColor;
+
+        Window window = getWindow();
+        window.setStatusBarColor(statusColor);
+        window.setNavigationBarColor(navigationColor);
+        webView.setBackgroundColor(statusColor);
+
+        if (statusBarBackground != null) {
+            statusBarBackground.setBackgroundColor(statusColor);
+        }
+        if (navigationBarBackground != null) {
+            navigationBarBackground.setBackgroundColor(navigationColor);
+        }
+
+        int flags = window.getDecorView().getSystemUiVisibility();
+        flags = setSystemBarIconFlags(flags, statusColor, navigationColor);
+        window.getDecorView().setSystemUiVisibility(flags);
+    }
+
+    private int setSystemBarIconFlags(int flags, int statusColor, int navigationColor) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (isLightColor(statusColor)) {
+                flags |= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+            } else {
+                flags &= ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+            }
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if (isLightColor(navigationColor)) {
+                flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+            } else {
+                flags &= ~View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+            }
+        }
+        return flags;
+    }
+
+    private boolean isLightColor(int color) {
+        double luminance = (0.299 * Color.red(color) + 0.587 * Color.green(color) + 0.114 * Color.blue(color)) / 255;
+        return luminance > 0.58;
+    }
+
+    private int parseCssColor(String value, int fallback) {
+        if (value == null) {
+            return fallback;
+        }
+        String color = value.trim();
+        try {
+            if (color.startsWith("#")) {
+                return Color.parseColor(color);
+            }
+
+            if (color.startsWith("rgb")) {
+                int start = color.indexOf('(');
+                int end = color.indexOf(')');
+                if (start >= 0 && end > start) {
+                    String[] parts = color.substring(start + 1, end).split(",");
+                    if (parts.length >= 3) {
+                        int red = clampColor(Math.round(Float.parseFloat(parts[0].trim())));
+                        int green = clampColor(Math.round(Float.parseFloat(parts[1].trim())));
+                        int blue = clampColor(Math.round(Float.parseFloat(parts[2].trim())));
+                        return Color.rgb(red, green, blue);
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+            return fallback;
+        }
+        return fallback;
+    }
+
+    private int clampColor(int value) {
+        return Math.max(0, Math.min(255, value));
     }
 
     private void discoverAndOpen() {

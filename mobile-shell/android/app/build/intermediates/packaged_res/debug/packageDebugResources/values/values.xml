@@ -1,12 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <color name="app_system_bar">#111111</color>
     <color name="brand">#FF5A7A</color>
     <color name="brand_dark">#D93F61</color>
     <string name="app_name">FastBook</string>
     <style name="AppTheme" parent="@android:style/Theme.Material.Light.NoActionBar">
         <item name="android:fontFamily">sans</item>
-        <item name="android:windowLightStatusBar">true</item>
-        <item name="android:statusBarColor">#FFFFFF</item>
-        <item name="android:navigationBarColor">#FFFFFF</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:statusBarColor">@color/app_system_bar</item>
+        <item name="android:navigationBarColor">@color/app_system_bar</item>
+        <item name="android:windowBackground">@color/app_system_bar</item>
+        <item name="android:enforceStatusBarContrast">false</item>
+        <item name="android:enforceNavigationBarContrast">false</item>
     </style>
 </resources>
