@@ -220,7 +220,7 @@
       "min_booking_notice_min": 330,
       "max_booking_days_ahead": 30,
       "created_at": "2026-06-02T16:26:04.755Z",
-      "updated_at": "2026-08-28T19:29:31.673Z",
+      "updated_at": "2026-08-31T00:13:26.507Z",
       "cover_position_x": 50,
       "cover_position_y": 50,
       "auto_time_snap": true
@@ -491,7 +491,7 @@
       "master_id": "53bc4d87-921c-49a6-854c-68a79886d7f1",
       "title": "Мойка авто",
       "price": 2700,
-      "duration_min": 60,
+      "duration_min": 75,
       "notes": "",
       "description": "Афигенная услуга",
       "category": "",
@@ -3297,6 +3297,14 @@
       "start_time": "10:00",
       "end_time": "12:00",
       "reason": "Недоступно"
+    },
+    {
+      "id": "4241d5ad-82ab-472e-a8c5-79bca77d6c3a",
+      "master_id": "53bc4d87-921c-49a6-854c-68a79886d7f1",
+      "date": "2026-11-20",
+      "start_time": "10:00",
+      "end_time": "12:00",
+      "reason": "Недоступно"
     }
   ],
   "telegram_connect_tokens": [
@@ -3408,7 +3416,7 @@
       "is_active": true,
       "sort_order": 50,
       "created_at": "2026-07-19T18:13:59.114Z",
-      "updated_at": "2026-08-29T20:47:49.850Z"
+      "updated_at": "2026-08-30T23:56:42.985Z"
     },
     {
       "id": "35f360a2-5602-4a39-826f-14814e69d3ec",
@@ -3421,7 +3429,7 @@
       "is_active": true,
       "sort_order": 10,
       "created_at": "2026-07-19T18:13:59.124Z",
-      "updated_at": "2026-08-29T20:47:49.836Z"
+      "updated_at": "2026-08-30T23:56:42.972Z"
     },
     {
       "id": "63d81dec-4ee6-49c5-8ca6-84b9bd4ba5ee",
@@ -3434,7 +3442,7 @@
       "is_active": true,
       "sort_order": 20,
       "created_at": "2026-07-19T18:13:59.125Z",
-      "updated_at": "2026-08-29T20:47:49.840Z"
+      "updated_at": "2026-08-30T23:56:42.975Z"
     },
     {
       "id": "afb45278-bcee-4d31-884c-ee62b3a87a90",
@@ -3447,7 +3455,7 @@
       "is_active": true,
       "sort_order": 30,
       "created_at": "2026-07-19T18:13:59.126Z",
-      "updated_at": "2026-08-29T20:47:49.843Z"
+      "updated_at": "2026-08-30T23:56:42.978Z"
     },
     {
       "id": "075d6493-7797-45a3-a754-145a49c4e576",
@@ -3460,7 +3468,7 @@
       "is_active": true,
       "sort_order": 40,
       "created_at": "2026-07-19T18:13:59.128Z",
-      "updated_at": "2026-08-29T20:47:49.847Z"
+      "updated_at": "2026-08-30T23:56:42.981Z"
     }
   ],
   "subscriptions": [
